@@ -1,0 +1,6 @@
+{
+  "name": "Recorder",
+  "description": "Pixel-style voice recorder featuring real-time waveform visualization, live audio transcription, dual audio and transcript views, and playback controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
