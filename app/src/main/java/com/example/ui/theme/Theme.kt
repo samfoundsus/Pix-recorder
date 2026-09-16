@@ -95,25 +95,25 @@ fun MyApplicationTheme(
   val colorScheme =
     when {
       dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-        val dynamicScheme = if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        if (isDark) {
-          // Use the dynamic dark color scheme's surfaceContainerHigh role for background and surface.
-          // This reduces the perceived AMOLED-black appearance by ~80% (Tone 17 vs Tone 4/6),
-          // keeping the background distinctly dark while making the wallpaper-derived Material You tint clearly visible.
-          dynamicScheme.copy(
-            background = dynamicScheme.surfaceContainerHigh,
-            surface = dynamicScheme.surfaceContainerHigh
-          )
-        } else {
-          // In dynamic light mode, ensure background uses the subtle dynamic light tonal role
-          if (dynamicScheme.background == Color.White) {
+        try {
+          val dynamicScheme = if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+          if (isDark) {
             dynamicScheme.copy(
-              background = dynamicScheme.surfaceContainerLow,
-              surface = dynamicScheme.surfaceContainerLow
+              background = dynamicScheme.surfaceContainerHigh,
+              surface = dynamicScheme.surfaceContainerHigh
             )
           } else {
-            dynamicScheme
+            if (dynamicScheme.background == Color.White) {
+              dynamicScheme.copy(
+                background = dynamicScheme.surfaceContainerLow,
+                surface = dynamicScheme.surfaceContainerLow
+              )
+            } else {
+              dynamicScheme
+            }
           }
+        } catch (e: Exception) {
+          if (isDark) FallbackDarkColorScheme else FallbackLightColorScheme
         }
       }
 

@@ -136,19 +136,27 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
     }
 
     init {
-        viewModelScope.launch {
-            // Seed demo recordings if empty so Pixel Recorder features are immediately previewable
-            val existing = repository.allRecordings.first()
-            if (existing.isEmpty()) {
-                seedInitialPixelRecordings()
+        viewModelScope.launch(Dispatchers.IO) {
+            try {
+                // Seed demo recordings if empty so Pixel Recorder features are immediately previewable
+                val existing = repository.allRecordings.first()
+                if (existing.isEmpty()) {
+                    seedInitialPixelRecordings()
+                }
+            } catch (e: Exception) {
+                android.util.Log.w("RecorderViewModel", "Initial seeding skipped: ${e.message}")
             }
         }
 
         viewModelScope.launch {
             _selectedRecordingId.collect { id ->
                 if (id != null) {
-                    repository.getRecordingById(id).collect { entity ->
-                        _selectedRecording.value = entity
+                    try {
+                        repository.getRecordingById(id).collect { entity ->
+                            _selectedRecording.value = entity
+                        }
+                    } catch (e: Exception) {
+                        _selectedRecording.value = null
                     }
                 } else {
                     _selectedRecording.value = null

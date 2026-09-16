@@ -32,6 +32,8 @@ android {
       keyPassword = System.getenv("KEY_PASSWORD")
       enableV1Signing = true
       enableV2Signing = true
+      enableV3Signing = true
+      enableV4Signing = true
     }
     getByName("debug") {
       val localDebugKeystore = file("${rootDir}/debug.keystore")
@@ -43,6 +45,8 @@ android {
       }
       enableV1Signing = true
       enableV2Signing = true
+      enableV3Signing = true
+      enableV4Signing = true
     }
   }
 
@@ -73,7 +77,7 @@ android {
       excludes += "/META-INF/{AL2.0,LGPL2.1}"
     }
     jniLibs {
-      useLegacyPackaging = true
+      useLegacyPackaging = false
     }
   }
 }

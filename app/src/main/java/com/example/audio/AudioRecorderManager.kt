@@ -94,15 +94,7 @@ class AudioRecorderManager(
     )
 
     init {
-        mainHandler.post {
-            try {
-                if (SpeechRecognizer.isRecognitionAvailable(context)) {
-                    initSpeechRecognizer()
-                }
-            } catch (e: Exception) {
-                Log.w(tag, "Speech recognizer initialization deferred: ${e.message}")
-            }
-        }
+        // SpeechRecognizer is initialized lazily when recording starts with permissions granted
     }
 
     private fun initSpeechRecognizer() {
