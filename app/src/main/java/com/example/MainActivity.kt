@@ -48,6 +48,16 @@ class MainActivity : ComponentActivity() {
       }
     }
   }
+
+  override fun onPause() {
+    super.onPause()
+    viewModel.pausePlayback()
+  }
+
+  override fun onStop() {
+    super.onStop()
+    viewModel.pausePlayback()
+  }
 }
 
 @Composable
@@ -55,6 +65,7 @@ fun PixelRecorderApp(viewModel: RecorderViewModel) {
   val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
 
   BackHandler(enabled = currentScreen != AppScreen.LIBRARY) {
+    viewModel.pausePlayback()
     when (currentScreen) {
       AppScreen.PLAYBACK -> viewModel.closePlayback()
       AppScreen.RECORDING -> viewModel.cancelRecording()
@@ -91,6 +102,7 @@ fun PixelRecorderApp(viewModel: RecorderViewModel) {
           onPlayPause = { recording ->
             viewModel.playRecordingInline(recording)
           },
+          onPausePlayback = { viewModel.pausePlayback() },
           onToggleFavorite = { recording -> viewModel.toggleFavorite(recording) },
           onRename = { id, newTitle -> viewModel.updateRecordingTitle(id, newTitle) },
           onTagChange = { id, newTag -> viewModel.updateRecordingTag(id, newTag) },
@@ -113,7 +125,8 @@ fun PixelRecorderApp(viewModel: RecorderViewModel) {
           onDiscard = { viewModel.cancelRecording() },
           onSave = { customTitle -> viewModel.saveRecording(customTitle) },
           recordingManager = viewModel.recorderManager,
-          amplitudeFlow = viewModel.amplitudeFlow
+          amplitudeFlow = viewModel.amplitudeFlow,
+          onPausePlayback = { viewModel.pausePlayback() }
         )
       }
 
@@ -121,16 +134,24 @@ fun PixelRecorderApp(viewModel: RecorderViewModel) {
         val selectedRecording by viewModel.selectedRecording.collectAsStateWithLifecycle()
         val playerState by viewModel.playerState.collectAsStateWithLifecycle()
         val playbackTab by viewModel.recordingDetailTab.collectAsStateWithLifecycle()
+        val transcriptionStates by viewModel.transcriptionStates.collectAsStateWithLifecycle()
+        val currentLanguage by viewModel.settingsManager.transcriptionLanguage.collectAsStateWithLifecycle()
 
         val rec = selectedRecording
         if (rec != null) {
+          val currentTranscriptionState = transcriptionStates[rec.id] ?: com.example.transcription.TranscriptionState.Idle
+
           PlaybackScreen(
             recording = rec,
             playerState = playerState,
             selectedTab = playbackTab,
             onTabSelected = { viewModel.setRecordingDetailTab(it) },
-            onBack = { viewModel.closePlayback() },
+            onBack = {
+              viewModel.pausePlayback()
+              viewModel.closePlayback()
+            },
             onPlayPause = { viewModel.togglePlayPauseCurrent() },
+            onPausePlayback = { viewModel.pausePlayback() },
             onSeek = { viewModel.seekTo(it) },
             onReplay10 = { viewModel.replay10() },
             onForward30 = { viewModel.forward30() },
@@ -140,7 +161,10 @@ fun PixelRecorderApp(viewModel: RecorderViewModel) {
             onUpdateTitle = { viewModel.updateRecordingTitle(rec.id, it) },
             onUpdateTag = { viewModel.updateRecordingTag(rec.id, it) },
             onDelete = { viewModel.deleteRecording(rec.id) },
-            onSegmentClick = { segment -> viewModel.seekToTranscriptSegment(segment) }
+            onSegmentClick = { segment -> viewModel.seekToTranscriptSegment(segment) },
+            transcriptionState = currentTranscriptionState,
+            onTranscribe = { viewModel.transcribeRecording(rec.id, forceRetry = true) },
+            configuredLanguageDisplayName = currentLanguage.displayName
           )
         } else {
           viewModel.backToLibrary()
@@ -150,7 +174,11 @@ fun PixelRecorderApp(viewModel: RecorderViewModel) {
       AppScreen.SETTINGS -> {
         SettingsScreen(
           settingsManager = viewModel.settingsManager,
-          onBack = { viewModel.closeSettings() }
+          onBack = {
+            viewModel.pausePlayback()
+            viewModel.closeSettings()
+          },
+          onPausePlayback = { viewModel.pausePlayback() }
         )
       }
     }

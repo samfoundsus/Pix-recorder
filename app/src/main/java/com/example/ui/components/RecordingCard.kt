@@ -47,6 +47,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -67,6 +69,7 @@ fun RecordingCard(
     onCardClick: () -> Unit,
     onCardLongClick: (() -> Unit)? = null,
     onPlayPauseClick: () -> Unit,
+    onPausePlayback: () -> Unit = {},
     onToggleFavorite: () -> Unit,
     onRename: () -> Unit,
     onTagChange: () -> Unit,
@@ -86,17 +89,27 @@ fun RecordingCard(
         if (text.isNotBlank()) text else "No transcript available"
     }
 
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val baseCardColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val unselectedCardColor = if (isDark) lerp(baseCardColor, Color.Black, 0.40f) else baseCardColor
+    val basePillColor = MaterialTheme.colorScheme.surfaceContainerHighest
+    val pillBgColor = if (isDark) lerp(basePillColor, Color.Black, 0.40f) else basePillColor
+    val menuBgColor = if (isDark) lerp(MaterialTheme.colorScheme.surfaceContainerHigh, Color.Black, 0.40f) else MaterialTheme.colorScheme.surfaceContainerHigh
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(16.dp))
             .combinedClickable(
                 onClick = { onCardClick() },
-                onLongClick = { onCardLongClick?.invoke() }
+                onLongClick = {
+                    onPausePlayback()
+                    onCardLongClick?.invoke()
+                }
             )
             .testTag("recording_item_card_${recording.id}"),
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
-                else MaterialTheme.colorScheme.surfaceContainerHigh,
+                else unselectedCardColor,
         shape = RoundedCornerShape(16.dp),
         border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
         tonalElevation = if (isSelected) 4.dp else 2.dp
@@ -139,7 +152,7 @@ fun RecordingCard(
                         Box(
                             modifier = Modifier
                                 .clip(RoundedCornerShape(6.dp))
-                                .background(MaterialTheme.colorScheme.surfaceContainerHighest)
+                                .background(pillBgColor)
                                 .padding(horizontal = 7.dp, vertical = 2.dp)
                         ) {
                             Text(
@@ -196,7 +209,10 @@ fun RecordingCard(
 
                         Box {
                             IconButton(
-                                onClick = { menuExpanded = true },
+                                onClick = {
+                                    onPausePlayback()
+                                    menuExpanded = true
+                                },
                                 modifier = Modifier.size(36.dp).testTag("more_button_${recording.id}")
                             ) {
                                 Icon(
@@ -210,7 +226,7 @@ fun RecordingCard(
                             DropdownMenu(
                                 expanded = menuExpanded,
                                 onDismissRequest = { menuExpanded = false },
-                                modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                                modifier = Modifier.background(menuBgColor)
                             ) {
                                 DropdownMenuItem(
                                     text = { Text("Rename") },

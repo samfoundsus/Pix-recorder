@@ -24,6 +24,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
@@ -31,27 +32,34 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Forward30
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
+import androidx.compose.material.icons.filled.Refresh
 import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Star
 import androidx.compose.material.icons.outlined.Audiotrack
 import androidx.compose.material.icons.outlined.Description
+import androidx.compose.material.icons.outlined.ErrorOutline
 import androidx.compose.material.icons.outlined.Share
 import androidx.compose.material.icons.outlined.StarBorder
+import com.example.transcription.TranscriptionStage
+import com.example.transcription.TranscriptionState
 import com.example.ui.RecordingShareHelper
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -86,6 +94,7 @@ fun PlaybackScreen(
     onTabSelected: (Int) -> Unit,
     onBack: () -> Unit,
     onPlayPause: () -> Unit,
+    onPausePlayback: () -> Unit = {},
     onSeek: (Long) -> Unit,
     onReplay10: () -> Unit,
     onForward30: () -> Unit,
@@ -96,6 +105,9 @@ fun PlaybackScreen(
     onUpdateTag: (String) -> Unit,
     onDelete: () -> Unit,
     onSegmentClick: (TranscriptSegment) -> Unit,
+    transcriptionState: TranscriptionState = TranscriptionState.Idle,
+    onTranscribe: () -> Unit = {},
+    configuredLanguageDisplayName: String = "System Default",
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -117,6 +129,12 @@ fun PlaybackScreen(
         recording.getAmplitudes()
     }
     val availableSpeeds = remember { listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f) }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            onPausePlayback()
+        }
+    }
 
     if (showRenameDialog) {
         AlertDialog(
@@ -197,7 +215,10 @@ fun PlaybackScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 IconButton(
-                    onClick = onBack,
+                    onClick = {
+                        onPausePlayback()
+                        onBack()
+                    },
                     modifier = Modifier.testTag("playback_back_button")
                 ) {
                     Icon(
@@ -221,7 +242,10 @@ fun PlaybackScreen(
 
                     Box {
                         IconButton(
-                            onClick = { shareMenuExpanded = true },
+                            onClick = {
+                                onPausePlayback()
+                                shareMenuExpanded = true
+                            },
                             modifier = Modifier.testTag("playback_share_button")
                         ) {
                             Icon(
@@ -262,7 +286,10 @@ fun PlaybackScreen(
                     }
 
                     IconButton(
-                        onClick = { showDeleteConfirmDialog = true },
+                        onClick = {
+                            onPausePlayback()
+                            showDeleteConfirmDialog = true
+                        },
                         modifier = Modifier.testTag("playback_delete_button")
                     ) {
                         Icon(
@@ -280,7 +307,10 @@ fun PlaybackScreen(
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { showRenameDialog = true }
+                    .clickable {
+                        onPausePlayback()
+                        showRenameDialog = true
+                    }
                     .padding(vertical = 4.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -348,7 +378,10 @@ fun PlaybackScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(100.dp))
                             .background(if (audioSelected) MaterialTheme.colorScheme.surface else Color.Transparent)
-                            .clickable { onTabSelected(0) }
+                            .clickable {
+                                onPausePlayback()
+                                onTabSelected(0)
+                            }
                             .padding(horizontal = 24.dp, vertical = 6.dp)
                             .testTag("playback_tab_audio")
                     ) {
@@ -367,7 +400,10 @@ fun PlaybackScreen(
                         modifier = Modifier
                             .clip(RoundedCornerShape(100.dp))
                             .background(if (transcriptSelected) MaterialTheme.colorScheme.surface else Color.Transparent)
-                            .clickable { onTabSelected(1) }
+                            .clickable {
+                                onPausePlayback()
+                                onTabSelected(1)
+                            }
                             .padding(horizontal = 24.dp, vertical = 6.dp)
                             .testTag("playback_tab_transcript")
                     ) {
@@ -445,142 +481,331 @@ fun PlaybackScreen(
                         }
                     }
                 } else {
-                    // Transcript Tab: Transcript segments with interactive playback seeking
+                    // Transcript Tab: On-device ML Kit Speech Recognition Transcripts
                     Column(modifier = Modifier.fillMaxSize()) {
-                        // Transcript Search & Copy Row
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            OutlinedTextField(
-                                value = transcriptSearchQuery,
-                                onValueChange = { transcriptSearchQuery = it },
-                                placeholder = { Text("Search transcript...") },
-                                leadingIcon = {
-                                    Icon(
-                                        imageVector = Icons.Default.Search,
-                                        contentDescription = null,
-                                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                },
-                                shape = RoundedCornerShape(100.dp),
-                                singleLine = true,
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .height(50.dp)
-                                    .testTag("transcript_search_input")
-                            )
-
-                            Spacer(modifier = Modifier.width(8.dp))
-
-                            IconButton(
-                                onClick = {
-                                    val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-                                    val clip = ClipData.newPlainText("Transcript", recording.getFullTranscriptText())
-                                    clipboard.setPrimaryClip(clip)
-                                    Toast.makeText(context, "Transcript copied to clipboard", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.testTag("copy_transcript_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.ContentCopy,
-                                    contentDescription = "Copy Transcript",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-
-                            IconButton(
-                                onClick = {
-                                    RecordingShareHelper.shareTranscript(context, recording)
-                                },
-                                modifier = Modifier.testTag("share_transcript_button")
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Share,
-                                    contentDescription = "Share Transcript",
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Surface(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .clip(RoundedCornerShape(24.dp)),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        ) {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxSize()
-                                    .padding(16.dp)
-                            ) {
-                                if (filteredSegments.isEmpty()) {
-                                    item {
-                                        Box(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .padding(top = 40.dp),
-                                            contentAlignment = Alignment.Center
-                                        ) {
-                                            Text(
-                                                text = if (transcriptSearchQuery.isBlank())
-                                                    "No transcript available for this recording."
-                                                else "No matches found in transcript.",
-                                                style = MaterialTheme.typography.bodyMedium,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                                textAlign = TextAlign.Center
+                        when (transcriptionState) {
+                            is TranscriptionState.Transcribing -> {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(24.dp)),
+                                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                ) {
+                                    Column(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
+                                    ) {
+                                        CircularProgressIndicator(
+                                            modifier = Modifier.size(48.dp),
+                                            color = MaterialTheme.colorScheme.primary,
+                                            strokeWidth = 4.dp
+                                        )
+                                        Spacer(modifier = Modifier.height(20.dp))
+                                        Text(
+                                            text = "Transcribing…",
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        val stageLabel = when (transcriptionState.stage) {
+                                            TranscriptionStage.PREPARING_AUDIO -> "Preparing audio format locally…"
+                                            TranscriptionStage.CHECKING_MODEL -> "Checking on-device speech model…"
+                                            TranscriptionStage.DOWNLOADING_MODEL -> "Downloading speech model…"
+                                            TranscriptionStage.RECOGNIZING -> "Processing speech recognition on device…"
+                                            TranscriptionStage.FINALIZING -> "Finalizing transcript…"
+                                        }
+                                        Text(
+                                            text = stageLabel,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center
+                                        )
+                                        if (transcriptionState.progress > 0f) {
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            LinearProgressIndicator(
+                                                progress = { transcriptionState.progress },
+                                                modifier = Modifier
+                                                    .fillMaxWidth(0.8f)
+                                                    .height(6.dp)
+                                                    .clip(RoundedCornerShape(3.dp))
                                             )
+                                        }
+                                        if (transcriptionState.partialText.isNotBlank()) {
+                                            Spacer(modifier = Modifier.height(20.dp))
+                                            Surface(
+                                                shape = RoundedCornerShape(16.dp),
+                                                color = MaterialTheme.colorScheme.surface,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column(modifier = Modifier.padding(16.dp)) {
+                                                    Text(
+                                                        text = "LIVE SPEECH",
+                                                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                        color = MaterialTheme.colorScheme.primary
+                                                    )
+                                                    Spacer(modifier = Modifier.height(4.dp))
+                                                    Text(
+                                                        text = transcriptionState.partialText,
+                                                        style = MaterialTheme.typography.bodyMedium,
+                                                        color = MaterialTheme.colorScheme.onSurface
+                                                    )
+                                                }
+                                            }
                                         }
                                     }
                                 }
-
-                                items(filteredSegments, key = { "${it.startMs}_${it.endMs}" }) { segment ->
-                                    val isActive = playerState.currentPositionMs >= segment.startMs &&
-                                            playerState.currentPositionMs <= segment.endMs
-
+                            }
+                            is TranscriptionState.Error -> {
+                                Surface(
+                                    modifier = Modifier
+                                        .fillMaxSize()
+                                        .clip(RoundedCornerShape(24.dp)),
+                                    color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+                                ) {
                                     Column(
                                         modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clip(RoundedCornerShape(12.dp))
-                                            .clickable { onSegmentClick(segment) }
-                                            .background(
-                                                if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
-                                                else Color.Transparent
-                                            )
-                                            .padding(8.dp)
-                                            .testTag("transcript_segment_${segment.startMs}")
+                                            .fillMaxSize()
+                                            .padding(24.dp),
+                                        horizontalAlignment = Alignment.CenterHorizontally,
+                                        verticalArrangement = Arrangement.Center
                                     ) {
-                                        Row(verticalAlignment = Alignment.CenterVertically) {
-                                            Text(
-                                                text = segment.speaker,
-                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
+                                        Icon(
+                                            imageVector = Icons.Outlined.ErrorOutline,
+                                            contentDescription = null,
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(48.dp)
+                                        )
+                                        Spacer(modifier = Modifier.height(16.dp))
+                                        Text(
+                                            text = "Transcription Failed",
+                                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Spacer(modifier = Modifier.height(8.dp))
+                                        Text(
+                                            text = transcriptionState.message,
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            textAlign = TextAlign.Center,
+                                            modifier = Modifier.fillMaxWidth(0.9f)
+                                        )
+                                        Spacer(modifier = Modifier.height(24.dp))
+                                        Button(
+                                            onClick = onTranscribe,
+                                            modifier = Modifier.testTag("retry_transcription_button")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.Refresh,
+                                                contentDescription = null,
+                                                modifier = Modifier.size(18.dp)
                                             )
-
                                             Spacer(modifier = Modifier.width(8.dp))
-
+                                            Text("Retry transcription")
+                                        }
+                                    }
+                                }
+                            }
+                            else -> {
+                                if (segments.isEmpty()) {
+                                    // Empty state: Allow manual transcription from recording detail screen
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(RoundedCornerShape(24.dp)),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    ) {
+                                        Column(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(24.dp),
+                                            horizontalAlignment = Alignment.CenterHorizontally,
+                                            verticalArrangement = Arrangement.Center
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Description,
+                                                contentDescription = null,
+                                                tint = MaterialTheme.colorScheme.primary,
+                                                modifier = Modifier.size(48.dp)
+                                            )
+                                            Spacer(modifier = Modifier.height(16.dp))
                                             Text(
-                                                text = formatDuration(segment.startMs),
-                                                style = MaterialTheme.typography.labelSmall.copy(
-                                                    fontFamily = FontFamily.Monospace
-                                                ),
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                text = "No transcript available",
+                                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.onSurface
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "Transcribe this audio locally on your device with ML Kit Speech Recognition.",
+                                                style = MaterialTheme.typography.bodyMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                textAlign = TextAlign.Center,
+                                                modifier = Modifier.fillMaxWidth(0.85f)
+                                            )
+                                            Spacer(modifier = Modifier.height(8.dp))
+                                            Text(
+                                                text = "Language: $configuredLanguageDisplayName",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.tertiary
+                                            )
+                                            Spacer(modifier = Modifier.height(24.dp))
+                                            Button(
+                                                onClick = onTranscribe,
+                                                modifier = Modifier.testTag("start_transcription_button")
+                                            ) {
+                                                Icon(
+                                                    imageVector = Icons.Default.AutoAwesome,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(18.dp)
+                                                )
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text("Transcribe audio")
+                                            }
+                                        }
+                                    }
+                                } else {
+                                    // Completed Transcript: search, copy, share, and interactive segment list
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        OutlinedTextField(
+                                            value = transcriptSearchQuery,
+                                            onValueChange = { transcriptSearchQuery = it },
+                                            placeholder = { Text("Search transcript...") },
+                                            leadingIcon = {
+                                                Icon(
+                                                    imageVector = Icons.Default.Search,
+                                                    contentDescription = null,
+                                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            },
+                                            shape = RoundedCornerShape(100.dp),
+                                            singleLine = true,
+                                            modifier = Modifier
+                                                .weight(1f)
+                                                .height(50.dp)
+                                                .testTag("transcript_search_input")
+                                        )
+
+                                        Spacer(modifier = Modifier.width(8.dp))
+
+                                        IconButton(
+                                            onClick = {
+                                                onPausePlayback()
+                                                val clipboard = context.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+                                                val clip = ClipData.newPlainText("Transcript", recording.getFullTranscriptText())
+                                                clipboard.setPrimaryClip(clip)
+                                                Toast.makeText(context, "Transcript copied to clipboard", Toast.LENGTH_SHORT).show()
+                                            },
+                                            modifier = Modifier.testTag("copy_transcript_button")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Default.ContentCopy,
+                                                contentDescription = "Copy Transcript",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
                                         }
 
-                                        Spacer(modifier = Modifier.height(4.dp))
+                                        IconButton(
+                                            onClick = {
+                                                onPausePlayback()
+                                                RecordingShareHelper.shareTranscript(context, recording)
+                                            },
+                                            modifier = Modifier.testTag("share_transcript_button")
+                                        ) {
+                                            Icon(
+                                                imageVector = Icons.Outlined.Share,
+                                                contentDescription = "Share Transcript",
+                                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
 
-                                        Text(
-                                            text = segment.text,
-                                            style = MaterialTheme.typography.bodyMedium.copy(
-                                                lineHeight = 22.sp,
-                                                fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal
-                                            ),
-                                            color = if (isActive) MaterialTheme.colorScheme.onSurface
-                                            else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
-                                        )
+                                    Spacer(modifier = Modifier.height(12.dp))
+
+                                    Surface(
+                                        modifier = Modifier
+                                            .fillMaxSize()
+                                            .clip(RoundedCornerShape(24.dp)),
+                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    ) {
+                                        LazyColumn(
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .padding(16.dp)
+                                        ) {
+                                            if (filteredSegments.isEmpty()) {
+                                                item {
+                                                    Box(
+                                                        modifier = Modifier
+                                                            .fillMaxWidth()
+                                                            .padding(top = 40.dp),
+                                                        contentAlignment = Alignment.Center
+                                                    ) {
+                                                        Text(
+                                                            text = if (transcriptSearchQuery.isBlank())
+                                                                "No transcript available for this recording."
+                                                            else "No matches found in transcript.",
+                                                            style = MaterialTheme.typography.bodyMedium,
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                                            textAlign = TextAlign.Center
+                                                        )
+                                                    }
+                                                }
+                                            }
+
+                                            items(filteredSegments, key = { "${it.startMs}_${it.endMs}_${it.text.hashCode()}" }) { segment ->
+                                                val isActive = playerState.currentPositionMs >= segment.startMs &&
+                                                        playerState.currentPositionMs <= segment.endMs
+
+                                                Column(
+                                                    modifier = Modifier
+                                                        .fillMaxWidth()
+                                                        .clip(RoundedCornerShape(12.dp))
+                                                        .clickable { onSegmentClick(segment) }
+                                                        .background(
+                                                            if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                                                            else Color.Transparent
+                                                        )
+                                                        .padding(8.dp)
+                                                        .testTag("transcript_segment_${segment.startMs}")
+                                                ) {
+                                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                                        if (segment.speaker.isNotBlank()) {
+                                                            Text(
+                                                                text = segment.speaker,
+                                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                                color = if (isActive) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.tertiary
+                                                            )
+                                                            Spacer(modifier = Modifier.width(8.dp))
+                                                        }
+
+                                                        Text(
+                                                            text = formatDuration(segment.startMs),
+                                                            style = MaterialTheme.typography.labelSmall.copy(
+                                                                fontFamily = FontFamily.Monospace
+                                                            ),
+                                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                        )
+                                                    }
+
+                                                    Spacer(modifier = Modifier.height(4.dp))
+
+                                                    Text(
+                                                        text = segment.text,
+                                                        style = MaterialTheme.typography.bodyMedium.copy(
+                                                            lineHeight = 22.sp,
+                                                            fontWeight = if (isActive) FontWeight.SemiBold else FontWeight.Normal
+                                                        ),
+                                                        color = if (isActive) MaterialTheme.colorScheme.onSurface
+                                                        else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                                                    )
+                                                }
+                                            }
+                                        }
                                     }
                                 }
                             }
@@ -609,7 +834,10 @@ fun PlaybackScreen(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         modifier = Modifier
                             .clip(RoundedCornerShape(100.dp))
-                            .clickable { speedMenuExpanded = true }
+                            .clickable {
+                                onPausePlayback()
+                                speedMenuExpanded = true
+                            }
                             .testTag("playback_speed_button")
                     ) {
                         Text(

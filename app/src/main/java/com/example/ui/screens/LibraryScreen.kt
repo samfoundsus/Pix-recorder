@@ -77,6 +77,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -106,6 +108,7 @@ fun LibraryScreen(
     onRecordClick: () -> Unit,
     onCardClick: (RecordingEntity) -> Unit,
     onPlayPause: (RecordingEntity) -> Unit,
+    onPausePlayback: () -> Unit = {},
     onToggleFavorite: (RecordingEntity) -> Unit,
     onRename: (recordingId: Long, newTitle: String) -> Unit,
     onTagChange: (recordingId: Long, newTag: String) -> Unit,
@@ -164,6 +167,7 @@ fun LibraryScreen(
     }
 
     val handleRecordTrigger: () -> Unit = {
+        onPausePlayback()
         val isGranted = ContextCompat.checkSelfPermission(
             context,
             Manifest.permission.RECORD_AUDIO
@@ -486,6 +490,7 @@ fun LibraryScreen(
                                 IconButton(
                                     onClick = {
                                         if (selectedIds.isNotEmpty()) {
+                                            onPausePlayback()
                                             bulkShareMenuExpanded = true
                                         }
                                     },
@@ -538,6 +543,7 @@ fun LibraryScreen(
                             IconButton(
                                 onClick = {
                                     if (selectedIds.isNotEmpty()) {
+                                        onPausePlayback()
                                         showBulkDeleteDialog = true
                                     }
                                 },
@@ -593,7 +599,10 @@ fun LibraryScreen(
 
                             // Settings Button
                             IconButton(
-                                onClick = onSettingsClick,
+                                onClick = {
+                                    onPausePlayback()
+                                    onSettingsClick()
+                                },
                                 modifier = Modifier
                                     .size(36.dp)
                                     .clip(CircleShape)
@@ -611,6 +620,9 @@ fun LibraryScreen(
                 }
 
                 if (!isSelectionMode) {
+                    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+                    val searchContainerColor = if (isDark) lerp(MaterialTheme.colorScheme.surfaceContainerHighest, Color.Black, 0.40f) else MaterialTheme.colorScheme.surfaceContainerHighest
+
                     Spacer(modifier = Modifier.height(16.dp))
 
                     // Pixel Material 3 Search Bar
@@ -649,8 +661,8 @@ fun LibraryScreen(
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f),
                             unfocusedBorderColor = Color.Transparent,
-                            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
-                            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                            focusedContainerColor = searchContainerColor,
+                            unfocusedContainerColor = searchContainerColor,
                             cursorColor = MaterialTheme.colorScheme.primary
                         ),
                         modifier = Modifier
@@ -777,6 +789,8 @@ fun LibraryScreen(
                     }
                 }
 
+                val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+
                 // List of Recordings or Empty State
                 if (recordings.isEmpty()) {
                     Box(
@@ -789,9 +803,10 @@ fun LibraryScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(32.dp)
                         ) {
+                            val emptyIconBg = if (isDark) lerp(MaterialTheme.colorScheme.surfaceContainerHigh, Color.Black, 0.40f) else MaterialTheme.colorScheme.surfaceContainerHigh
                             Surface(
                                 shape = CircleShape,
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                color = emptyIconBg,
                                 modifier = Modifier.size(72.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
@@ -853,6 +868,7 @@ fun LibraryScreen(
                                     }
                                 },
                                 onCardLongClick = {
+                                    onPausePlayback()
                                     if (!isSelectionMode) {
                                         isSelectionMode = true
                                         selectedIds = setOf(recording.id)
@@ -865,22 +881,28 @@ fun LibraryScreen(
                                     }
                                 },
                                 onPlayPauseClick = { onPlayPause(recording) },
+                                onPausePlayback = onPausePlayback,
                                 onToggleFavorite = { onToggleFavorite(recording) },
                                 onRename = {
+                                    onPausePlayback()
                                     renameTarget = recording
                                     renameInputText = recording.title
                                 },
                                 onTagChange = {
+                                    onPausePlayback()
                                     tagTarget = recording
                                     selectedTagOption = recording.tag
                                 },
                                 onShareAudio = {
+                                    onPausePlayback()
                                     RecordingShareHelper.shareAudio(context, recording)
                                 },
                                 onShareTranscript = {
+                                    onPausePlayback()
                                     RecordingShareHelper.shareTranscript(context, recording)
                                 },
                                 onDelete = {
+                                    onPausePlayback()
                                     deleteTarget = recording
                                 },
                                 searchHighlight = searchQuery

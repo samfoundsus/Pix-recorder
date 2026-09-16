@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.RepeatMode
@@ -86,11 +87,38 @@ fun RecordScreen(
     onSave: (customTitle: String?) -> Unit,
     modifier: Modifier = Modifier,
     recordingManager: AudioRecorderManager? = null,
-    amplitudeFlow: Flow<List<Float>>? = null
+    amplitudeFlow: Flow<List<Float>>? = null,
+    onPausePlayback: () -> Unit = {}
 ) {
     var showDiscardConfirmDialog by remember { mutableStateOf(false) }
     var showSaveNamingDialog by remember { mutableStateOf(false) }
     var customTitleInput by remember { mutableStateOf("") }
+    var wasRecordingBeforeDialog by remember { mutableStateOf(false) }
+
+    val onDismissOrCancelDialog = {
+        if (wasRecordingBeforeDialog) {
+            onResume()
+        }
+        wasRecordingBeforeDialog = false
+    }
+
+    BackHandler(enabled = true) {
+        if (showSaveNamingDialog) {
+            showSaveNamingDialog = false
+            onDismissOrCancelDialog()
+        } else if (showDiscardConfirmDialog) {
+            showDiscardConfirmDialog = false
+            onDismissOrCancelDialog()
+        } else {
+            onPausePlayback()
+            val wasRecording = !recordingState.isPaused
+            wasRecordingBeforeDialog = wasRecording
+            if (wasRecording) {
+                onPause()
+            }
+            showDiscardConfirmDialog = true
+        }
+    }
 
     val dotAlpha = if (!recordingState.isPaused) {
         val infiniteTransition = rememberInfiniteTransition(label = "recDot")
@@ -108,13 +136,17 @@ fun RecordScreen(
 
     if (showDiscardConfirmDialog) {
         AlertDialog(
-            onDismissRequest = { showDiscardConfirmDialog = false },
+            onDismissRequest = {
+                showDiscardConfirmDialog = false
+                onDismissOrCancelDialog()
+            },
             title = { Text("Discard recording?") },
             text = { Text("This recording and its live transcript will not be saved.") },
             confirmButton = {
                 TextButton(
                     onClick = {
                         showDiscardConfirmDialog = false
+                        wasRecordingBeforeDialog = false
                         onDiscard()
                     },
                     modifier = Modifier.testTag("confirm_discard_button")
@@ -123,7 +155,12 @@ fun RecordScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showDiscardConfirmDialog = false }) {
+                TextButton(
+                    onClick = {
+                        showDiscardConfirmDialog = false
+                        onDismissOrCancelDialog()
+                    }
+                ) {
                     Text("Cancel")
                 }
             }
@@ -132,7 +169,10 @@ fun RecordScreen(
 
     if (showSaveNamingDialog) {
         AlertDialog(
-            onDismissRequest = { showSaveNamingDialog = false },
+            onDismissRequest = {
+                showSaveNamingDialog = false
+                onDismissOrCancelDialog()
+            },
             title = { Text("Save recording") },
             text = {
                 Column {
@@ -155,6 +195,7 @@ fun RecordScreen(
                 Button(
                     onClick = {
                         showSaveNamingDialog = false
+                        wasRecordingBeforeDialog = false
                         onSave(customTitleInput.ifBlank { null })
                     },
                     colors = ButtonDefaults.buttonColors(
@@ -167,7 +208,12 @@ fun RecordScreen(
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showSaveNamingDialog = false }) {
+                TextButton(
+                    onClick = {
+                        showSaveNamingDialog = false
+                        onDismissOrCancelDialog()
+                    }
+                ) {
                     Text("Cancel")
                 }
             }
@@ -437,12 +483,14 @@ fun RecordScreen(
                             items(recordingState.segments, key = { "${it.startMs}_${it.endMs}_${it.speaker}" }) { segment ->
                                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
-                                        Text(
-                                            text = segment.speaker,
-                                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                                            color = MaterialTheme.colorScheme.tertiary
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
+                                        if (segment.speaker.isNotBlank()) {
+                                            Text(
+                                                text = segment.speaker,
+                                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                                color = MaterialTheme.colorScheme.tertiary
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                        }
                                         Text(
                                             text = formatDuration(segment.startMs),
                                             style = MaterialTheme.typography.labelSmall,
@@ -495,7 +543,15 @@ fun RecordScreen(
             ) {
                 // Discard Button (Trash)
                 IconButton(
-                    onClick = { showDiscardConfirmDialog = true },
+                    onClick = {
+                        onPausePlayback()
+                        val wasRecording = !recordingState.isPaused
+                        wasRecordingBeforeDialog = wasRecording
+                        if (wasRecording) {
+                            onPause()
+                        }
+                        showDiscardConfirmDialog = true
+                    },
                     modifier = Modifier
                         .size(54.dp)
                         .clip(CircleShape)
@@ -534,7 +590,15 @@ fun RecordScreen(
 
                 // Save Pill Button (Pixel style)
                 Button(
-                    onClick = { showSaveNamingDialog = true },
+                    onClick = {
+                        onPausePlayback()
+                        val wasRecording = !recordingState.isPaused
+                        wasRecordingBeforeDialog = wasRecording
+                        if (wasRecording) {
+                            onPause()
+                        }
+                        showSaveNamingDialog = true
+                    },
                     shape = RoundedCornerShape(100.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,

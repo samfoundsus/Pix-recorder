@@ -4,7 +4,7 @@ import org.json.JSONArray
 import org.json.JSONObject
 
 data class TranscriptSegment(
-    val speaker: String = "Speaker 1",
+    val speaker: String = "",
     val startMs: Long = 0L,
     val endMs: Long = 0L,
     val text: String = ""
@@ -21,7 +21,7 @@ data class TranscriptSegment(
     companion object {
         fun fromJsonObject(obj: JSONObject): TranscriptSegment {
             return TranscriptSegment(
-                speaker = obj.optString("speaker", "Speaker 1"),
+                speaker = obj.optString("speaker", ""),
                 startMs = obj.optLong("startMs", 0L),
                 endMs = obj.optLong("endMs", 0L),
                 text = obj.optString("text", "")

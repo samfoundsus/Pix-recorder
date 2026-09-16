@@ -15,6 +15,11 @@ import com.example.data.model.TranscriptSegment
 import com.example.data.repository.RecordingRepository
 import com.example.data.settings.AudioFormatOption
 import com.example.data.settings.SettingsManager
+import com.example.transcription.OnDeviceTranscriptionService
+import com.example.transcription.TranscriptionErrorType
+import com.example.transcription.TranscriptionService
+import com.example.transcription.TranscriptionStage
+import com.example.transcription.TranscriptionState
 import com.example.ui.theme.ThemeMode
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +32,9 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.io.File
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -88,6 +95,11 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
     private val _activeRecordTab = MutableStateFlow(0) // 0 = Audio, 1 = Transcript
     val activeRecordTab: StateFlow<Int> = _activeRecordTab.asStateFlow()
 
+    // Real on-device ML Kit Speech Transcription Service
+    val transcriptionService: TranscriptionService = OnDeviceTranscriptionService(application)
+    private val _transcriptionStates = MutableStateFlow<Map<Long, TranscriptionState>>(emptyMap())
+    val transcriptionStates: StateFlow<Map<Long, TranscriptionState>> = _transcriptionStates.asStateFlow()
+
     val availableTags = listOf("All", "Notes", "Meetings", "Ideas", "Interviews", "Starred")
 
     val recordingsList: StateFlow<List<RecordingEntity>> = combine(
@@ -126,7 +138,12 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         settingsManager.setThemeMode(mode)
     }
 
+    fun pausePlayback() {
+        playerManager.pause()
+    }
+
     fun openSettings() {
+        playerManager.pause()
         settingsManager.refreshStorageStats()
         _currentScreen.value = AppScreen.SETTINGS
     }
@@ -175,53 +192,6 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
             0.48f, 0.76f, 0.89f, 0.81f, 0.52f, 0.31f, 0.68f, 0.84f, 0.73f, 0.44f,
             0.20f, 0.35f, 0.65f, 0.91f, 0.88f, 0.72f, 0.41f, 0.29f, 0.58f, 0.70f
         )
-        val sampleTranscript1 = listOf(
-            TranscriptSegment(
-                speaker = "Speaker 1",
-                startMs = 0L,
-                endMs = 8200L,
-                text = "Welcome to the team standup. Today we're reviewing the new Pixel Recorder interface design and speech processing pipeline."
-            ),
-            TranscriptSegment(
-                speaker = "Speaker 2",
-                startMs = 8500L,
-                endMs = 17400L,
-                text = "The dynamic audio waveform visualization is feeling really responsive, especially with the real-time amplitude track."
-            ),
-            TranscriptSegment(
-                speaker = "Speaker 1",
-                startMs = 17800L,
-                endMs = 28600L,
-                text = "Agreed. Live transcription and interactive seeking from transcript words make reviewing recordings effortless."
-            ),
-            TranscriptSegment(
-                speaker = "Speaker 2",
-                startMs = 29000L,
-                endMs = 38000L,
-                text = "Everything looks clean and matches Material 3 specs. Let's wrap this up and test on device."
-            )
-        )
-
-        val sampleAmps2 = listOf(
-            0.20f, 0.35f, 0.50f, 0.70f, 0.65f, 0.40f, 0.25f, 0.55f, 0.80f, 0.75f,
-            0.60f, 0.30f, 0.45f, 0.85f, 0.90f, 0.68f, 0.42f, 0.30f, 0.70f, 0.88f,
-            0.82f, 0.58f, 0.35f, 0.48f, 0.78f, 0.92f, 0.80f, 0.52f, 0.28f, 0.62f
-        )
-        val sampleTranscript2 = listOf(
-            TranscriptSegment(
-                speaker = "Speaker 1",
-                startMs = 0L,
-                endMs = 9500L,
-                text = "Quick voice note on the user experience: make sure the big red record button has a smooth tactile pulse."
-            ),
-            TranscriptSegment(
-                speaker = "Speaker 1",
-                startMs = 9800L,
-                endMs = 21000L,
-                text = "Playback scrubber should support scrubbing and speed toggle up to 2x without audio distortion."
-            )
-        )
-
         repository.insertRecording(
             RecordingEntity(
                 title = "Design Sync & Architecture",
@@ -229,10 +199,16 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                 createdAt = System.currentTimeMillis() - 3600000L * 2,
                 durationMs = 38000L,
                 amplitudesJson = RecordingEntity.amplitudesToJson(sampleAmps1),
-                transcriptJson = TranscriptSegment.listToJson(sampleTranscript1),
+                transcriptJson = "[]",
                 tag = "Meetings",
                 isFavorite = true
             )
+        )
+
+        val sampleAmps2 = listOf(
+            0.20f, 0.35f, 0.50f, 0.70f, 0.65f, 0.40f, 0.25f, 0.55f, 0.80f, 0.75f,
+            0.60f, 0.30f, 0.45f, 0.85f, 0.90f, 0.68f, 0.42f, 0.30f, 0.70f, 0.88f,
+            0.82f, 0.58f, 0.35f, 0.48f, 0.78f, 0.92f, 0.80f, 0.52f, 0.28f, 0.62f
         )
 
         repository.insertRecording(
@@ -242,7 +218,7 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                 createdAt = System.currentTimeMillis() - 86400000L,
                 durationMs = 21000L,
                 amplitudesJson = RecordingEntity.amplitudesToJson(sampleAmps2),
-                transcriptJson = TranscriptSegment.listToJson(sampleTranscript2),
+                transcriptJson = "[]",
                 tag = "Ideas",
                 isFavorite = false
             )
@@ -327,6 +303,11 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                 val newId = repository.insertRecording(entity)
                 settingsManager.refreshStorageStats()
                 openRecordingPlayback(newId)
+
+                // Automatic transcription if enabled in settings
+                if (settingsManager.autoTranscriptionEnabled.value) {
+                    transcribeRecording(newId)
+                }
             } else {
                 _currentScreen.value = AppScreen.LIBRARY
             }
@@ -346,18 +327,19 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                     val (s1, s2) = com.example.audio.AudioFileHelper.ensureSampleAudioFiles(getApplication())
                     path = if (recording.title.contains("Design", ignoreCase = true)) s1 else s2
                 }
-                playerManager.loadAndPlay(recording.id, path, recording.durationMs)
+                playerManager.loadIfNotLoaded(recording.id, path, recording.durationMs, autoPlay = true)
             }
         }
     }
 
     fun closePlayback() {
-        playerManager.stop()
+        playerManager.pause()
         _selectedRecordingId.value = null
         _currentScreen.value = AppScreen.LIBRARY
     }
 
     fun backToLibrary() {
+        playerManager.pause()
         _currentScreen.value = AppScreen.LIBRARY
     }
 
@@ -473,9 +455,87 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
+    fun transcribeRecording(recordingId: Long, forceRetry: Boolean = false) {
+        val currentStatus = _transcriptionStates.value[recordingId]
+        if (currentStatus is TranscriptionState.Transcribing) {
+            return
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            val rec = repository.getRecordingById(recordingId).first() ?: return@launch
+            if (!forceRetry && rec.getTranscriptSegments().isNotEmpty()) {
+                return@launch
+            }
+
+            _transcriptionStates.update {
+                it + (recordingId to TranscriptionState.Transcribing(
+                    partialText = "",
+                    progress = 0.05f,
+                    stage = TranscriptionStage.PREPARING_AUDIO
+                ))
+            }
+
+            val targetLang = settingsManager.transcriptionLanguage.value
+            val filePath = rec.filePath
+
+            val stateFlow = if (filePath.startsWith("content://")) {
+                transcriptionService.transcribeAudioUri(Uri.parse(filePath), targetLang)
+            } else {
+                var actualFile = File(filePath)
+                if (!actualFile.exists() || actualFile.length() == 0L) {
+                    val (s1, s2) = com.example.audio.AudioFileHelper.ensureSampleAudioFiles(getApplication())
+                    val samplePath = if (rec.title.contains("Design", ignoreCase = true)) s1 else s2
+                    actualFile = File(samplePath)
+                }
+                if (!actualFile.exists() || actualFile.length() == 0L) {
+                    _transcriptionStates.update {
+                        it + (recordingId to TranscriptionState.Error(
+                            TranscriptionErrorType.INVALID_AUDIO,
+                            "Audio file not found or empty."
+                        ))
+                    }
+                    return@launch
+                }
+                transcriptionService.transcribeAudioFile(actualFile, targetLang)
+            }
+
+            stateFlow.collect { state ->
+                _transcriptionStates.update { it + (recordingId to state) }
+                when (state) {
+                    is TranscriptionState.Success -> {
+                        val newSegments = state.segments.map { seg ->
+                            TranscriptSegment(
+                                speaker = seg.speaker.orEmpty(),
+                                startMs = seg.startMs,
+                                endMs = seg.endMs,
+                                text = seg.text
+                            )
+                        }
+                        val updated = rec.copy(
+                            transcriptJson = TranscriptSegment.listToJson(newSegments)
+                        )
+                        repository.updateRecording(updated)
+                    }
+                    is TranscriptionState.Error -> {
+                        android.util.Log.e("RecorderViewModel", "Transcription error: ${state.message}", state.cause)
+                    }
+                    else -> {}
+                }
+            }
+        }
+    }
+
+    fun cancelTranscription(recordingId: Long) {
+        viewModelScope.launch {
+            transcriptionService.cancel()
+            _transcriptionStates.update { it - recordingId }
+        }
+    }
+
     override fun onCleared() {
         super.onCleared()
         recorderManager.release()
         playerManager.release()
+        transcriptionService.release()
     }
 }

@@ -80,18 +80,7 @@ class AudioRecorderManager(
     private val recordedAmplitudes = mutableListOf<Float>()
     private val transcriptSegments = mutableListOf<TranscriptSegment>()
     private var segmentStartMs = 0L
-
-    // Fallback transcript phrases for emulator / offline speech recognizer
-    private var fallbackPhraseIndex = 0
     private var lastSpeechDetectedMs = 0L
-    private val fallbackPhrases = listOf(
-        "Beginning audio recording with Pixel high fidelity capture.",
-        "Voice transcription is running in real time.",
-        "Analyzing audio waveform frequencies and speaker dynamics.",
-        "Key points documented: architecture review and project milestones.",
-        "Next steps confirmed for the upcoming sprint release.",
-        "Audio synchronization active across transcript timestamps."
-    )
 
     init {
         // SpeechRecognizer is initialized lazily when recording starts with permissions granted
@@ -252,7 +241,6 @@ class AudioRecorderManager(
             segmentStartMs = 0L
             recordedAmplitudes.clear()
             transcriptSegments.clear()
-            fallbackPhraseIndex = 0
 
             val initialTranscriptText = if (settingsManager.autoTranscriptionEnabled.value) "Listening..." else "Transcripts off"
 
@@ -347,18 +335,6 @@ class AudioRecorderManager(
             file = wavFile
         }
 
-        // Ensure at least one transcript segment exists
-        if (transcriptSegments.isEmpty() && duration >= 1000) {
-            transcriptSegments.add(
-                TranscriptSegment(
-                    speaker = "Speaker 1",
-                    startMs = 0L,
-                    endMs = duration,
-                    text = "Pixel voice recording captured successfully."
-                )
-            )
-        }
-
         val result = if (file.exists() && file.length() > 0) {
             RecordingOutput(
                 file = file,
@@ -400,13 +376,8 @@ class AudioRecorderManager(
 
     private fun addTranscriptSegment(text: String) {
         val currentDuration = _recordingState.value.durationMs
-        val speakerLabel = if (settingsManager.speakerLabelsEnabled.value) {
-            if (transcriptSegments.size % 2 == 0) "Speaker 1" else "Speaker 2"
-        } else {
-            ""
-        }
         val segment = TranscriptSegment(
-            speaker = speakerLabel,
+            speaker = "",
             startMs = segmentStartMs,
             endMs = currentDuration,
             text = text
@@ -471,19 +442,6 @@ class AudioRecorderManager(
                         recordedAmplitudes.takeLast(70)
                     } else {
                         recordedAmplitudes.toList()
-                    }
-
-                    // Automatic fallback transcription generation if SpeechRecognizer hasn't produced segments
-                    // Generates natural conversational segment every ~5 seconds of speech energy
-                    if (rawAmp > 2000 || (rawAmp <= 150 && normalizedAmp > 0.45f)) {
-                        lastSpeechDetectedMs = System.currentTimeMillis()
-                    }
-
-                    val timeSinceLastSegment = currentElapsed - segmentStartMs
-                    if (timeSinceLastSegment > 6000 && fallbackPhraseIndex < fallbackPhrases.size && transcriptSegments.size < 6) {
-                        val phrase = fallbackPhrases[fallbackPhraseIndex % fallbackPhrases.size]
-                        fallbackPhraseIndex++
-                        addTranscriptSegment(phrase)
                     }
 
                     _recordingState.value = _recordingState.value.copy(

@@ -135,12 +135,29 @@ class AudioPlayerManager(
 
     fun pause() {
         try {
+            val current = mediaPlayer?.currentPosition?.toLong()
+            if (current != null && current >= 0) {
+                _playerState.value = _playerState.value.copy(currentPositionMs = current)
+            }
             mediaPlayer?.pause()
         } catch (e: Exception) {
             // Ignore
         }
         progressJob?.cancel()
         _playerState.value = _playerState.value.copy(isPlaying = false)
+    }
+
+    fun loadIfNotLoaded(recordingId: Long, filePath: String, durationMs: Long, autoPlay: Boolean = false) {
+        if (_playerState.value.currentRecordingId == recordingId && (mediaPlayer != null || _playerState.value.totalDurationMs > 0)) {
+            if (autoPlay && !_playerState.value.isPlaying) {
+                resume()
+            }
+            return
+        }
+        loadAndPlay(recordingId, filePath, durationMs)
+        if (!autoPlay) {
+            pause()
+        }
     }
 
     fun resume() {

@@ -75,6 +75,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
@@ -99,6 +101,7 @@ import kotlinx.coroutines.launch
 fun SettingsScreen(
     settingsManager: SettingsManager,
     onBack: () -> Unit,
+    onPausePlayback: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -161,7 +164,10 @@ fun SettingsScreen(
                 },
                 navigationIcon = {
                     IconButton(
-                        onClick = onBack,
+                        onClick = {
+                            onPausePlayback()
+                            onBack()
+                        },
                         modifier = Modifier.testTag("settings_back_button")
                     ) {
                         Icon(
@@ -685,10 +691,17 @@ private fun SettingsCardGroup(
     modifier: Modifier = Modifier,
     content: @Composable () -> Unit
 ) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val containerColor = if (isDark) {
+        lerp(MaterialTheme.colorScheme.surfaceContainerHighest, Color.Black, 0.40f)
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHighest
+    }
+
     Card(
         shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHighest
+            containerColor = containerColor
         ),
         modifier = modifier.fillMaxWidth()
     ) {
@@ -719,6 +732,13 @@ private fun SettingsPreferenceRow(
         Modifier.clickable(onClick = onClick)
     } else Modifier
 
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val iconBgColor = if (isDark) {
+        lerp(MaterialTheme.colorScheme.surfaceContainerHigh, Color.Black, 0.40f)
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
@@ -729,7 +749,7 @@ private fun SettingsPreferenceRow(
     ) {
         Surface(
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            color = iconBgColor,
             modifier = Modifier.size(40.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -768,6 +788,13 @@ private fun SettingsSwitchRow(
     testTag: String,
     modifier: Modifier = Modifier
 ) {
+    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
+    val iconBgColor = if (isDark) {
+        lerp(MaterialTheme.colorScheme.surfaceContainerHigh, Color.Black, 0.40f)
+    } else {
+        MaterialTheme.colorScheme.surfaceContainerHigh
+    }
+
     Row(
         verticalAlignment = Alignment.CenterVertically,
         modifier = modifier
@@ -777,7 +804,7 @@ private fun SettingsSwitchRow(
     ) {
         Surface(
             shape = CircleShape,
-            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            color = iconBgColor,
             modifier = Modifier.size(40.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
