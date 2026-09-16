@@ -16,7 +16,7 @@ android {
   defaultConfig {
     applicationId = "com.aistudio.pixelrecorder.voxrec"
     minSdk = 24
-    targetSdk = 36
+    targetSdk = 35
     versionCode = 1
     versionName = "1.0"
 
@@ -30,6 +30,8 @@ android {
       storePassword = System.getenv("STORE_PASSWORD")
       keyAlias = "upload"
       keyPassword = System.getenv("KEY_PASSWORD")
+      enableV1Signing = true
+      enableV2Signing = true
     }
     getByName("debug") {
       val localDebugKeystore = file("${rootDir}/debug.keystore")
@@ -39,6 +41,8 @@ android {
         keyAlias = "androiddebugkey"
         keyPassword = "android"
       }
+      enableV1Signing = true
+      enableV2Signing = true
     }
   }
 
