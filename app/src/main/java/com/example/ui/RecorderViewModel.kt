@@ -273,7 +273,7 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                 val title = if (!customTitle.isNullOrBlank()) customTitle else defaultTitle
 
                 val formatOpt = settingsManager.audioFormat.value
-                val mimeType = if (formatOpt == AudioFormatOption.WAV || output.file.extension.equals("wav", ignoreCase = true)) {
+                val mimeType = if (output.file.extension.equals("wav", ignoreCase = true)) {
                     "audio/wav"
                 } else {
                     "audio/mp4"

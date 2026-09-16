@@ -77,8 +77,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
@@ -620,8 +618,7 @@ fun LibraryScreen(
                 }
 
                 if (!isSelectionMode) {
-                    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-                    val searchContainerColor = if (isDark) lerp(MaterialTheme.colorScheme.surfaceContainerHighest, Color.Black, 0.40f) else MaterialTheme.colorScheme.surfaceContainerHighest
+                    val searchContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -789,8 +786,6 @@ fun LibraryScreen(
                     }
                 }
 
-                val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-
                 // List of Recordings or Empty State
                 if (recordings.isEmpty()) {
                     Box(
@@ -803,7 +798,7 @@ fun LibraryScreen(
                             horizontalAlignment = Alignment.CenterHorizontally,
                             modifier = Modifier.padding(32.dp)
                         ) {
-                            val emptyIconBg = if (isDark) lerp(MaterialTheme.colorScheme.surfaceContainerHigh, Color.Black, 0.40f) else MaterialTheme.colorScheme.surfaceContainerHigh
+                            val emptyIconBg = MaterialTheme.colorScheme.surfaceContainerHigh
                             Surface(
                                 shape = CircleShape,
                                 color = emptyIconBg,

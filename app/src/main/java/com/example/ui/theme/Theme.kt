@@ -10,6 +10,7 @@ import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.platform.LocalContext
 
 enum class ThemeMode {
@@ -76,6 +77,22 @@ val FallbackLightColorScheme: ColorScheme =
     outlineVariant = FallbackLightOutlineVariant
   )
 
+private fun lightenDarkSurface(color: Color): Color = lerp(color, Color.White, 0.07f)
+
+private fun adjustDynamicDarkScheme(scheme: ColorScheme): ColorScheme {
+  return scheme.copy(
+    background = lightenDarkSurface(scheme.background),
+    surface = lightenDarkSurface(scheme.surface),
+    surfaceDim = lightenDarkSurface(scheme.surfaceDim),
+    surfaceBright = lightenDarkSurface(scheme.surfaceBright),
+    surfaceContainerLowest = lightenDarkSurface(scheme.surfaceContainerLowest),
+    surfaceContainerLow = lightenDarkSurface(scheme.surfaceContainerLow),
+    surfaceContainer = lightenDarkSurface(scheme.surfaceContainer),
+    surfaceContainerHigh = lightenDarkSurface(scheme.surfaceContainerHigh),
+    surfaceContainerHighest = lightenDarkSurface(scheme.surfaceContainerHighest),
+  )
+}
+
 @Composable
 fun MyApplicationTheme(
   themeMode: ThemeMode? = null,
@@ -92,34 +109,17 @@ fun MyApplicationTheme(
   }
 
   val context = LocalContext.current
-  val colorScheme =
-    when {
-      dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-        try {
-          val dynamicScheme = if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-          if (isDark) {
-            dynamicScheme.copy(
-              background = dynamicScheme.surfaceContainerHigh,
-              surface = dynamicScheme.surfaceContainerHigh
-            )
-          } else {
-            if (dynamicScheme.background == Color.White) {
-              dynamicScheme.copy(
-                background = dynamicScheme.surfaceContainerLow,
-                surface = dynamicScheme.surfaceContainerLow
-              )
-            } else {
-              dynamicScheme
-            }
-          }
-        } catch (e: Exception) {
-          if (isDark) FallbackDarkColorScheme else FallbackLightColorScheme
-        }
+  val colorScheme = when {
+    dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+      if (isDark) {
+        adjustDynamicDarkScheme(dynamicDarkColorScheme(context))
+      } else {
+        dynamicLightColorScheme(context)
       }
-
-      isDark -> FallbackDarkColorScheme
-      else -> FallbackLightColorScheme
     }
+    isDark -> FallbackDarkColorScheme
+    else -> FallbackLightColorScheme
+  }
 
   MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
 }

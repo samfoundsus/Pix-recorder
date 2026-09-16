@@ -19,7 +19,6 @@ enum class AudioFormatOption(
 ) {
     M4A("M4A (AAC)", "m4a", MediaRecorder.OutputFormat.MPEG_4, MediaRecorder.AudioEncoder.AAC, true, "Standard Pixel audio format with high compression efficiency"),
     AAC("AAC", "aac", MediaRecorder.OutputFormat.AAC_ADTS, MediaRecorder.AudioEncoder.AAC, true, "Advanced Audio Coding stream"),
-    WAV("WAV (Lossless)", "wav", -1, -1, true, "Uncompressed PCM waveform"),
     FLAC("FLAC (Lossless)", "flac", -1, -1, Build.VERSION.SDK_INT >= Build.VERSION_CODES.O, "Free Lossless Audio Codec (API 27+)"),
     MP3("MP3", "mp3", -1, -1, false, "Not natively supported by MediaRecorder encoder on Android")
 }

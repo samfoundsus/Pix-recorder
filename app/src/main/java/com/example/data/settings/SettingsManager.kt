@@ -219,10 +219,21 @@ class SettingsManager(private val context: Context) {
 
     private fun loadAudioFormat(): AudioFormatOption {
         val saved = prefs.getString(Keys.AUDIO_FORMAT, AudioFormatOption.M4A.name)
+        if (saved.equals("WAV", ignoreCase = true)) {
+            // Automatically migrate legacy/saved WAV setting to default M4A
+            prefs.edit().putString(Keys.AUDIO_FORMAT, AudioFormatOption.M4A.name).apply()
+            return AudioFormatOption.M4A
+        }
         return try {
             val format = AudioFormatOption.valueOf(saved ?: AudioFormatOption.M4A.name)
-            if (format.isSupported) format else AudioFormatOption.M4A
+            if (format.isSupported) {
+                format
+            } else {
+                prefs.edit().putString(Keys.AUDIO_FORMAT, AudioFormatOption.M4A.name).apply()
+                AudioFormatOption.M4A
+            }
         } catch (e: Exception) {
+            prefs.edit().putString(Keys.AUDIO_FORMAT, AudioFormatOption.M4A.name).apply()
             AudioFormatOption.M4A
         }
     }

@@ -47,8 +47,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.lerp
-import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -89,12 +87,9 @@ fun RecordingCard(
         if (text.isNotBlank()) text else "No transcript available"
     }
 
-    val isDark = MaterialTheme.colorScheme.surface.luminance() < 0.5f
-    val baseCardColor = MaterialTheme.colorScheme.surfaceContainerHigh
-    val unselectedCardColor = if (isDark) lerp(baseCardColor, Color.Black, 0.40f) else baseCardColor
-    val basePillColor = MaterialTheme.colorScheme.surfaceContainerHighest
-    val pillBgColor = if (isDark) lerp(basePillColor, Color.Black, 0.40f) else basePillColor
-    val menuBgColor = if (isDark) lerp(MaterialTheme.colorScheme.surfaceContainerHigh, Color.Black, 0.40f) else MaterialTheme.colorScheme.surfaceContainerHigh
+    val unselectedCardColor = MaterialTheme.colorScheme.surfaceContainer
+    val pillBgColor = MaterialTheme.colorScheme.surfaceContainerHigh
+    val menuBgColor = MaterialTheme.colorScheme.surfaceContainerHigh
 
     Surface(
         modifier = modifier

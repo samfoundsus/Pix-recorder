@@ -58,4 +58,25 @@ class ExampleRobolectricTest {
       println("DEBUG_THEME: lightDynamic.surfaceContainer = ${lightDynamic.surfaceContainer}")
     }
   }
+
+  @Test
+  fun `audio format options do not include WAV and defaults to M4A`() {
+    val formats = com.example.data.settings.AudioFormatOption.values().map { it.name }
+    org.junit.Assert.assertFalse("WAV must not be present in AudioFormatOption", formats.contains("WAV"))
+    org.junit.Assert.assertTrue("M4A must be present", formats.contains("M4A"))
+    org.junit.Assert.assertTrue("AAC must be present", formats.contains("AAC"))
+    org.junit.Assert.assertTrue("FLAC must be present", formats.contains("FLAC"))
+    org.junit.Assert.assertTrue("MP3 must be present", formats.contains("MP3"))
+  }
+
+  @Test
+  fun `legacy saved WAV setting migrates automatically to M4A`() {
+    val context = ApplicationProvider.getApplicationContext<Context>()
+    val prefs = context.getSharedPreferences("pixel_recorder_settings", Context.MODE_PRIVATE)
+    prefs.edit().putString("audio_format", "WAV").commit()
+
+    val settingsManager = com.example.data.settings.SettingsManager(context)
+    assertEquals(com.example.data.settings.AudioFormatOption.M4A, settingsManager.audioFormat.value)
+    assertEquals(com.example.data.settings.AudioFormatOption.M4A.name, prefs.getString("audio_format", null))
+  }
 }

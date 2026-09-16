@@ -198,41 +198,36 @@ class AudioRecorderManager(
             currentOutputFile = file
             isFallbackRecorderActive = false
 
-            if (formatOpt == AudioFormatOption.WAV) {
+            try {
+                @Suppress("DEPRECATION")
+                val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    MediaRecorder(context)
+                } else {
+                    MediaRecorder()
+                }
+
+                val chosenSource = settingsManager.audioSource.value.source
+                val chosenOutputFormat = if (formatOpt.outputFormat != -1) formatOpt.outputFormat else MediaRecorder.OutputFormat.MPEG_4
+                val chosenEncoder = if (formatOpt.audioEncoder != -1) formatOpt.audioEncoder else MediaRecorder.AudioEncoder.AAC
+
+                recorder.apply {
+                    setAudioSource(chosenSource)
+                    setOutputFormat(chosenOutputFormat)
+                    setAudioEncoder(chosenEncoder)
+                    setAudioEncodingBitRate(settingsManager.bitrate.value.bitrate)
+                    setAudioSamplingRate(settingsManager.sampleRate.value.rate)
+                    setOutputFile(file.absolutePath)
+                    prepare()
+                    start()
+                }
+                mediaRecorder = recorder
+                Log.d(tag, "Hardware MediaRecorder started successfully with format $formatOpt at ${settingsManager.bitrate.value.displayName}")
+            } catch (recorderEx: Exception) {
+                Log.w(tag, "Hardware MediaRecorder unavailable (${recorderEx.message}). Activating fallback audio capture.", recorderEx)
                 mediaRecorder = null
                 isFallbackRecorderActive = true
-            } else {
-                try {
-                    @Suppress("DEPRECATION")
-                    val recorder = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                        MediaRecorder(context)
-                    } else {
-                        MediaRecorder()
-                    }
-
-                    val chosenSource = settingsManager.audioSource.value.source
-                    val chosenOutputFormat = if (formatOpt.outputFormat != -1) formatOpt.outputFormat else MediaRecorder.OutputFormat.MPEG_4
-                    val chosenEncoder = if (formatOpt.audioEncoder != -1) formatOpt.audioEncoder else MediaRecorder.AudioEncoder.AAC
-
-                    recorder.apply {
-                        setAudioSource(chosenSource)
-                        setOutputFormat(chosenOutputFormat)
-                        setAudioEncoder(chosenEncoder)
-                        setAudioEncodingBitRate(settingsManager.bitrate.value.bitrate)
-                        setAudioSamplingRate(settingsManager.sampleRate.value.rate)
-                        setOutputFile(file.absolutePath)
-                        prepare()
-                        start()
-                    }
-                    mediaRecorder = recorder
-                    Log.d(tag, "Hardware MediaRecorder started successfully with format $formatOpt at ${settingsManager.bitrate.value.displayName}")
-                } catch (recorderEx: Exception) {
-                    Log.w(tag, "Hardware MediaRecorder unavailable (${recorderEx.message}). Activating fallback audio capture.", recorderEx)
-                    mediaRecorder = null
-                    isFallbackRecorderActive = true
-                    val wavFile = File(recordingsDir, "rec_${System.currentTimeMillis()}.wav")
-                    currentOutputFile = wavFile
-                }
+                val wavFile = File(recordingsDir, "rec_${System.currentTimeMillis()}.wav")
+                currentOutputFile = wavFile
             }
 
             startTimeMs = System.currentTimeMillis()
