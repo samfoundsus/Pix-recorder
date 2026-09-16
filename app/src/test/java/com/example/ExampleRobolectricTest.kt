@@ -10,6 +10,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotEquals
 import org.junit.Test
 import org.junit.runner.RunWith
+import kotlinx.coroutines.flow.first
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 
@@ -78,5 +79,28 @@ class ExampleRobolectricTest {
     val settingsManager = com.example.data.settings.SettingsManager(context)
     assertEquals(com.example.data.settings.AudioFormatOption.M4A, settingsManager.audioFormat.value)
     assertEquals(com.example.data.settings.AudioFormatOption.M4A.name, prefs.getString("audio_format", null))
+  }
+
+  @Test
+  fun `database and viewmodel remain completely empty without seeding demo recordings`() = kotlinx.coroutines.test.runTest {
+    val application = ApplicationProvider.getApplicationContext<android.app.Application>()
+    val db = com.example.data.db.RecorderDatabase.getDatabase(application)
+    val dao = db.recordingDao()
+
+    // Query existing recordings and delete them
+    val existing = dao.getAllRecordings().first()
+    for (rec in existing) {
+      dao.delete(rec)
+    }
+
+    val recordingsAfterDelete = dao.getAllRecordings().first()
+    assertEquals(0, recordingsAfterDelete.size)
+
+    val viewModel = com.example.ui.RecorderViewModel(application)
+    // Allow any coroutines to settle
+    kotlinx.coroutines.delay(100)
+
+    val recordings = viewModel.recordingsList.first()
+    assertEquals(0, recordings.size)
   }
 }

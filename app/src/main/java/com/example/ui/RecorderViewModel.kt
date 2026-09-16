@@ -95,8 +95,10 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
     private val _activeRecordTab = MutableStateFlow(0) // 0 = Audio, 1 = Transcript
     val activeRecordTab: StateFlow<Int> = _activeRecordTab.asStateFlow()
 
-    // Real on-device ML Kit Speech Transcription Service
-    val transcriptionService: TranscriptionService = OnDeviceTranscriptionService(application)
+    // Real on-device ML Kit Speech Transcription Service (lazily initialized on first use)
+    val transcriptionService: TranscriptionService by lazy {
+        OnDeviceTranscriptionService(application)
+    }
     private val _transcriptionStates = MutableStateFlow<Map<Long, TranscriptionState>>(emptyMap())
     val transcriptionStates: StateFlow<Map<Long, TranscriptionState>> = _transcriptionStates.asStateFlow()
 
@@ -153,18 +155,6 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
     }
 
     init {
-        viewModelScope.launch(Dispatchers.IO) {
-            try {
-                // Seed demo recordings if empty so Pixel Recorder features are immediately previewable
-                val existing = repository.allRecordings.first()
-                if (existing.isEmpty()) {
-                    seedInitialPixelRecordings()
-                }
-            } catch (e: Exception) {
-                android.util.Log.w("RecorderViewModel", "Initial seeding skipped: ${e.message}")
-            }
-        }
-
         viewModelScope.launch {
             _selectedRecordingId.collect { id ->
                 if (id != null) {
@@ -180,49 +170,6 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
                 }
             }
         }
-    }
-
-    private suspend fun seedInitialPixelRecordings() {
-        val (sampleFile1, sampleFile2) = com.example.audio.AudioFileHelper.ensureSampleAudioFiles(getApplication())
-
-        val sampleAmps1 = listOf(
-            0.15f, 0.22f, 0.45f, 0.78f, 0.82f, 0.65f, 0.35f, 0.42f, 0.88f, 0.95f,
-            0.70f, 0.55f, 0.30f, 0.25f, 0.60f, 0.85f, 0.92f, 0.75f, 0.40f, 0.18f,
-            0.28f, 0.62f, 0.80f, 0.50f, 0.38f, 0.72f, 0.85f, 0.90f, 0.64f, 0.32f,
-            0.48f, 0.76f, 0.89f, 0.81f, 0.52f, 0.31f, 0.68f, 0.84f, 0.73f, 0.44f,
-            0.20f, 0.35f, 0.65f, 0.91f, 0.88f, 0.72f, 0.41f, 0.29f, 0.58f, 0.70f
-        )
-        repository.insertRecording(
-            RecordingEntity(
-                title = "Design Sync & Architecture",
-                filePath = sampleFile1,
-                createdAt = System.currentTimeMillis() - 3600000L * 2,
-                durationMs = 38000L,
-                amplitudesJson = RecordingEntity.amplitudesToJson(sampleAmps1),
-                transcriptJson = "[]",
-                tag = "Meetings",
-                isFavorite = true
-            )
-        )
-
-        val sampleAmps2 = listOf(
-            0.20f, 0.35f, 0.50f, 0.70f, 0.65f, 0.40f, 0.25f, 0.55f, 0.80f, 0.75f,
-            0.60f, 0.30f, 0.45f, 0.85f, 0.90f, 0.68f, 0.42f, 0.30f, 0.70f, 0.88f,
-            0.82f, 0.58f, 0.35f, 0.48f, 0.78f, 0.92f, 0.80f, 0.52f, 0.28f, 0.62f
-        )
-
-        repository.insertRecording(
-            RecordingEntity(
-                title = "Voice Memo: Audio Scrubber UX",
-                filePath = sampleFile2,
-                createdAt = System.currentTimeMillis() - 86400000L,
-                durationMs = 21000L,
-                amplitudesJson = RecordingEntity.amplitudesToJson(sampleAmps2),
-                transcriptJson = "[]",
-                tag = "Ideas",
-                isFavorite = false
-            )
-        )
     }
 
     fun setSearchQuery(query: String) {
@@ -321,13 +268,8 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
 
         viewModelScope.launch {
             val recording = repository.getRecordingById(id).first()
-            if (recording != null) {
-                var path = recording.filePath
-                if (path.isBlank()) {
-                    val (s1, s2) = com.example.audio.AudioFileHelper.ensureSampleAudioFiles(getApplication())
-                    path = if (recording.title.contains("Design", ignoreCase = true)) s1 else s2
-                }
-                playerManager.loadIfNotLoaded(recording.id, path, recording.durationMs, autoPlay = true)
+            if (recording != null && recording.filePath.isNotBlank()) {
+                playerManager.loadIfNotLoaded(recording.id, recording.filePath, recording.durationMs, autoPlay = true)
             }
         }
     }
@@ -352,12 +294,9 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
             playerManager.togglePlayPause()
         } else {
             viewModelScope.launch {
-                var path = recording.filePath
-                if (path.isBlank()) {
-                    val (s1, s2) = com.example.audio.AudioFileHelper.ensureSampleAudioFiles(getApplication())
-                    path = if (recording.title.contains("Design", ignoreCase = true)) s1 else s2
+                if (recording.filePath.isNotBlank()) {
+                    playerManager.loadAndPlay(recording.id, recording.filePath, recording.durationMs)
                 }
-                playerManager.loadAndPlay(recording.id, path, recording.durationMs)
             }
         }
     }
@@ -481,12 +420,7 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
             val stateFlow = if (filePath.startsWith("content://")) {
                 transcriptionService.transcribeAudioUri(Uri.parse(filePath), targetLang)
             } else {
-                var actualFile = File(filePath)
-                if (!actualFile.exists() || actualFile.length() == 0L) {
-                    val (s1, s2) = com.example.audio.AudioFileHelper.ensureSampleAudioFiles(getApplication())
-                    val samplePath = if (rec.title.contains("Design", ignoreCase = true)) s1 else s2
-                    actualFile = File(samplePath)
-                }
+                val actualFile = File(filePath)
                 if (!actualFile.exists() || actualFile.length() == 0L) {
                     _transcriptionStates.update {
                         it + (recordingId to TranscriptionState.Error(

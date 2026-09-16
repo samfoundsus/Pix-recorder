@@ -92,10 +92,6 @@ class SettingsManager(private val context: Context) {
     )
     val storageStats: StateFlow<StorageStats> = _storageStats.asStateFlow()
 
-    init {
-        refreshStorageStats()
-    }
-
     private fun loadInitialStorageDisplayName(): String {
         val uriStr = prefs.getString(Keys.STORAGE_TREE_URI, null)
         if (!uriStr.isNullOrBlank()) {

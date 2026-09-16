@@ -40,10 +40,9 @@ object RecordingShareHelper {
     }
 
     suspend fun getShareableUri(context: Context, recording: RecordingEntity): Uri? = withContext(Dispatchers.IO) {
-        var path = recording.filePath
+        val path = recording.filePath
         if (path.isBlank()) {
-            val (s1, s2) = AudioFileHelper.ensureSampleAudioFiles(context)
-            path = if (recording.title.contains("Design", ignoreCase = true)) s1 else s2
+            return@withContext null
         }
 
         if (path.startsWith("content://")) {

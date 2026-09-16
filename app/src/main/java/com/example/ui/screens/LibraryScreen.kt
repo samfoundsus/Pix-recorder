@@ -140,12 +140,17 @@ fun LibraryScreen(
     var showPermissionRationale by remember { mutableStateOf(false) }
     var showStoragePromptDialog by remember { mutableStateOf(false) }
 
+    var isUserInitiatedRecordAction by remember { mutableStateOf(false) }
+
     val storageFolderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
     ) { uri: Uri? ->
         if (uri != null) {
             onStorageFolderSelected(uri)
-            onRecordClick()
+            if (isUserInitiatedRecordAction) {
+                isUserInitiatedRecordAction = false
+                onRecordClick()
+            }
         }
     }
 
@@ -154,12 +159,16 @@ fun LibraryScreen(
     ) { isGranted ->
         hasMicPermission = isGranted
         if (isGranted) {
-            if (!isStorageConfigured) {
-                showStoragePromptDialog = true
-            } else {
-                onRecordClick()
+            if (isUserInitiatedRecordAction) {
+                if (!isStorageConfigured) {
+                    showStoragePromptDialog = true
+                } else {
+                    isUserInitiatedRecordAction = false
+                    onRecordClick()
+                }
             }
         } else {
+            isUserInitiatedRecordAction = false
             showPermissionRationale = true
         }
     }
@@ -171,11 +180,13 @@ fun LibraryScreen(
             Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
         hasMicPermission = isGranted
+        isUserInitiatedRecordAction = true
         if (!isGranted) {
             permissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
         } else if (!isStorageConfigured) {
             showStoragePromptDialog = true
         } else {
+            isUserInitiatedRecordAction = false
             onRecordClick()
         }
     }
