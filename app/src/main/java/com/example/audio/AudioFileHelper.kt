@@ -99,25 +99,4 @@ object AudioFileHelper {
             false
         }
     }
-
-    /**
-     * Ensures demo audio files exist so initial seed recordings are fully playable.
-     * Guaranteed non-blocking and safe to call.
-     */
-    suspend fun ensureSampleAudioFiles(context: Context): Pair<String, String> = withContext(Dispatchers.IO) {
-        val dir = File(context.filesDir, "recordings")
-        if (!dir.exists()) dir.mkdirs()
-
-        val sample1 = File(dir, "demo_sync_recording.wav")
-        if (!sample1.exists() || sample1.length() < 1000) {
-            writeWavFile(sample1, durationMs = 38000L, baseFreqHz = 240.0)
-        }
-
-        val sample2 = File(dir, "demo_ux_memo.wav")
-        if (!sample2.exists() || sample2.length() < 1000) {
-            writeWavFile(sample2, durationMs = 21000L, baseFreqHz = 310.0)
-        }
-
-        Pair(sample1.absolutePath, sample2.absolutePath)
-    }
 }
