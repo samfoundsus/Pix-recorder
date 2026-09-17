@@ -78,6 +78,8 @@ fun LiveRecordingWaveform(
             val barSpacing = 3.dp.toPx()
             val totalBarStep = barWidth + barSpacing
             val maxBars = (width / totalBarStep).toInt().coerceAtLeast(1)
+            val minBarHeightPx = 6.dp.toPx()
+            val cornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
 
             val ampCount = amplitudes.size
             val padCount = if (ampCount < maxBars) maxBars - ampCount else 0
@@ -93,7 +95,7 @@ fun LiveRecordingWaveform(
                 }
 
                 val amp = if (isPaused) rawAmp * 0.5f else (rawAmp * if (rawAmp < 0.15f) ambientPulse else 1f).coerceIn(0.04f, 1f)
-                val barHeight = max(6.dp.toPx(), amp * (height * 0.82f))
+                val barHeight = max(minBarHeightPx, amp * (height * 0.82f))
                 val top = centerY - barHeight / 2f
 
                 // Pixel multi-color waveform gradient
@@ -108,7 +110,7 @@ fun LiveRecordingWaveform(
                     color = barColor,
                     topLeft = Offset(x, top),
                     size = Size(barWidth, barHeight),
-                    cornerRadius = CornerRadius(barWidth / 2, barWidth / 2)
+                    cornerRadius = cornerRadius
                 )
             }
 
@@ -344,6 +346,8 @@ fun MiniWaveformPreview(
         )
 
         val barWidth = 2.5.dp.toPx()
+        val minBarHeightPx = 4.dp.toPx()
+        val barCornerRadius = CornerRadius(barWidth / 2f, barWidth / 2f)
         val gap = (width - (barCount * barWidth)) / (barCount - 1).coerceAtLeast(1)
 
         for (i in 0 until barCount) {
@@ -354,7 +358,7 @@ fun MiniWaveformPreview(
                 (baseAmp * waveMod).coerceIn(0.14f, 1f)
             } else baseAmp
 
-            val barHeight = max(4.dp.toPx(), amp * (height * 0.85f))
+            val barHeight = max(minBarHeightPx, amp * (height * 0.85f))
             val top = centerY - barHeight / 2f
 
             val alpha = if (isPlaying) 0.95f else 0.50f
@@ -363,7 +367,7 @@ fun MiniWaveformPreview(
                 color = barColor.copy(alpha = alpha),
                 topLeft = Offset(x, top),
                 size = Size(barWidth, barHeight),
-                cornerRadius = CornerRadius(barWidth / 2, barWidth / 2)
+                cornerRadius = barCornerRadius
             )
         }
     }
@@ -373,7 +377,7 @@ private fun resampleAmplitudes(source: List<Float>, targetCount: Int): List<Floa
     if (source.isEmpty()) return List(targetCount) { 0.2f }
     if (source.size == targetCount) return source
 
-    val result = mutableListOf<Float>()
+    val result = ArrayList<Float>(targetCount)
     val step = source.size.toFloat() / targetCount.toFloat()
 
     for (i in 0 until targetCount) {

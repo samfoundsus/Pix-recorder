@@ -11,6 +11,9 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
@@ -91,6 +94,7 @@ import com.example.ui.components.PixelRecordFab
 import com.example.ui.components.RecordingCard
 import com.example.ui.theme.ThemeMode
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun LibraryScreen(
     recordings: List<RecordingEntity>,
@@ -113,7 +117,9 @@ fun LibraryScreen(
     onDelete: (recordingId: Long) -> Unit,
     onBulkDelete: (recordingIds: Set<Long>) -> Unit = { ids -> ids.forEach { onDelete(it) } },
     modifier: Modifier = Modifier,
-    onSettingsClick: () -> Unit = {}
+    onSettingsClick: () -> Unit = {},
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
     val context = LocalContext.current
 
@@ -835,7 +841,11 @@ fun LibraryScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp),
                         contentPadding = PaddingValues(bottom = if (isSelectionMode) 32.dp else 112.dp, top = 4.dp)
                     ) {
-                        items(recordings, key = { it.id }) { recording ->
+                        items(
+                            items = recordings,
+                            key = { it.id },
+                            contentType = { "recording_card" }
+                        ) { recording ->
                             val isCurrentPlaying = playingRecordingId?.let { it == recording.id }
                                 ?: (playerState?.currentRecordingId == recording.id && playerState.isPlaying)
                             val isSelected = recording.id in selectedIds
@@ -893,7 +903,9 @@ fun LibraryScreen(
                                     onPausePlayback()
                                     deleteTarget = recording
                                 },
-                                searchHighlight = searchQuery
+                                searchHighlight = searchQuery,
+                                sharedTransitionScope = sharedTransitionScope,
+                                animatedVisibilityScope = animatedVisibilityScope
                             )
                         }
                     }

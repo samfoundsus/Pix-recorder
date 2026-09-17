@@ -111,7 +111,7 @@ fun RecordScreen(
             onDismissOrCancelDialog()
         } else {
             onPausePlayback()
-            val wasRecording = !recordingState.isPaused
+            val wasRecording = recordingState.isRecording && !recordingState.isPaused
             wasRecordingBeforeDialog = wasRecording
             if (wasRecording) {
                 onPause()
@@ -480,7 +480,11 @@ fun RecordScreen(
                                 }
                             }
 
-                            items(recordingState.segments, key = { "${it.startMs}_${it.endMs}_${it.speaker}" }) { segment ->
+                            items(
+                                items = recordingState.segments,
+                                key = { it.startMs },
+                                contentType = { "live_segment" }
+                            ) { segment ->
                                 Column(modifier = Modifier.padding(vertical = 8.dp)) {
                                     Row(verticalAlignment = Alignment.CenterVertically) {
                                         if (segment.speaker.isNotBlank()) {
@@ -545,7 +549,7 @@ fun RecordScreen(
                 IconButton(
                     onClick = {
                         onPausePlayback()
-                        val wasRecording = !recordingState.isPaused
+                        val wasRecording = recordingState.isRecording && !recordingState.isPaused
                         wasRecordingBeforeDialog = wasRecording
                         if (wasRecording) {
                             onPause()
@@ -597,7 +601,7 @@ fun RecordScreen(
                 Button(
                     onClick = {
                         onPausePlayback()
-                        val wasRecording = !recordingState.isPaused
+                        val wasRecording = recordingState.isRecording && !recordingState.isPaused
                         wasRecordingBeforeDialog = wasRecording
                         if (wasRecording) {
                             onPause()

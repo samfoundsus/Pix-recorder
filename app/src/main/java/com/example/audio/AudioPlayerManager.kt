@@ -244,7 +244,9 @@ class AudioPlayerManager(
                     next
                 }
 
-                _playerState.value = _playerState.value.copy(currentPositionMs = current)
+                if (_playerState.value.currentPositionMs != current) {
+                    _playerState.value = _playerState.value.copy(currentPositionMs = current)
+                }
                 delay(stepMs)
             }
         }

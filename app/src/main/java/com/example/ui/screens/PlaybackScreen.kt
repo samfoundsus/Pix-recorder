@@ -4,6 +4,11 @@ import android.content.ClipData
 import android.content.ClipboardManager
 import android.content.Context
 import android.widget.Toast
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -86,6 +91,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
+@OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
 fun PlaybackScreen(
     recording: RecordingEntity,
@@ -108,7 +114,9 @@ fun PlaybackScreen(
     transcriptionState: TranscriptionState = TranscriptionState.Idle,
     onTranscribe: () -> Unit = {},
     configuredLanguageDisplayName: String = "System Default",
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
     val context = LocalContext.current
     var showRenameDialog by remember { mutableStateOf(false) }
@@ -195,9 +203,22 @@ fun PlaybackScreen(
         )
     }
 
+    val screenBoundsModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedBounds(
+                sharedContentState = rememberSharedContentState(key = "recording_container_${recording.id}"),
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ ->
+                    tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                }
+            )
+        }
+    } else Modifier
+
     Surface(
         modifier = modifier
             .fillMaxSize()
+            .then(screenBoundsModifier)
             .statusBarsPadding(),
         color = MaterialTheme.colorScheme.background
     ) {
@@ -757,7 +778,11 @@ fun PlaybackScreen(
                                                 }
                                             }
 
-                                            items(filteredSegments, key = { "${it.startMs}_${it.endMs}_${it.text.hashCode()}" }) { segment ->
+                                            items(
+                                                items = filteredSegments,
+                                                key = { it.startMs },
+                                                contentType = { "transcript_segment" }
+                                            ) { segment ->
                                                 val isActive = playerState.currentPositionMs >= segment.startMs &&
                                                         playerState.currentPositionMs <= segment.endMs
 

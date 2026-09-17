@@ -1,5 +1,10 @@
 package com.example.ui.components
 
+import androidx.compose.animation.AnimatedVisibilityScope
+import androidx.compose.animation.ExperimentalSharedTransitionApi
+import androidx.compose.animation.SharedTransitionScope
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -57,7 +62,7 @@ import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 
-@OptIn(ExperimentalFoundationApi::class)
+@OptIn(ExperimentalFoundationApi::class, ExperimentalSharedTransitionApi::class)
 @Composable
 fun RecordingCard(
     recording: RecordingEntity,
@@ -75,7 +80,9 @@ fun RecordingCard(
     onShareTranscript: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
-    searchHighlight: String = ""
+    searchHighlight: String = "",
+    sharedTransitionScope: SharedTransitionScope? = null,
+    animatedVisibilityScope: AnimatedVisibilityScope? = null
 ) {
     var menuExpanded by remember { mutableStateOf(false) }
 
@@ -91,9 +98,22 @@ fun RecordingCard(
     val pillBgColor = MaterialTheme.colorScheme.surfaceContainerHigh
     val menuBgColor = MaterialTheme.colorScheme.surfaceContainerHigh
 
+    val cardBoundsModifier = if (sharedTransitionScope != null && animatedVisibilityScope != null) {
+        with(sharedTransitionScope) {
+            Modifier.sharedBounds(
+                sharedContentState = rememberSharedContentState(key = "recording_container_${recording.id}"),
+                animatedVisibilityScope = animatedVisibilityScope,
+                boundsTransform = { _, _ ->
+                    tween(durationMillis = 350, easing = FastOutSlowInEasing)
+                }
+            )
+        }
+    } else Modifier
+
     Surface(
         modifier = modifier
             .fillMaxWidth()
+            .then(cardBoundsModifier)
             .clip(RoundedCornerShape(16.dp))
             .combinedClickable(
                 onClick = { onCardClick() },

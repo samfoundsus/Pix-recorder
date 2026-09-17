@@ -192,7 +192,7 @@ class AudioRecorderManager(
         }
     }
 
-    private fun playSoundEffect(frequency: Double, durationMs: Int) {
+    private fun playSoundEffect(frequency: Double, durationMs: Int, blocking: Boolean = false) {
         try {
             val sampleRate = 16000
             val numSamples = (sampleRate * durationMs) / 1000
@@ -224,23 +224,42 @@ class AudioRecorderManager(
                 .build()
             audioTrack.write(samples, 0, samples.size)
             audioTrack.play()
-            mainHandler.postDelayed({
+
+            if (blocking) {
+                try {
+                    Thread.sleep(durationMs.toLong() + 30L)
+                } catch (e: Exception) {}
                 try {
                     audioTrack.stop()
                     audioTrack.release()
                 } catch (e: Exception) {}
-            }, durationMs.toLong() + 50L)
+            } else {
+                mainHandler.postDelayed({
+                    try {
+                        audioTrack.stop()
+                        audioTrack.release()
+                    } catch (e: Exception) {}
+                }, durationMs.toLong() + 50L)
+            }
         } catch (e: Exception) {
             Log.w(tag, "Failed to play sound effect: ${e.message}")
         }
     }
 
     private fun playStartSound() {
-        playSoundEffect(587.33, 120) // Soft D5 tone
+        playSoundEffect(587.33, 100, blocking = true)
     }
 
     private fun playStopSound() {
-        playSoundEffect(440.0, 140) // Soft A4 tone
+        playSoundEffect(440.0, 120, blocking = false)
+    }
+
+    private fun playPauseSound() {
+        playSoundEffect(523.25, 90, blocking = false)
+    }
+
+    private fun playResumeSound() {
+        playSoundEffect(659.25, 90, blocking = true)
     }
 
     fun startRecording(): Boolean {
@@ -373,6 +392,7 @@ class AudioRecorderManager(
                 isPaused = true,
                 liveTranscript = "Paused"
             )
+            playPauseSound()
         } catch (e: Exception) {
             Log.e(tag, "Failed to pause recording: ${e.message}", e)
             handleRecorderFailure("Failed to pause recording: ${e.message}")
@@ -382,6 +402,7 @@ class AudioRecorderManager(
     fun resumeRecording() {
         if (!_recordingState.value.isRecording || !_recordingState.value.isPaused) return
         try {
+            playResumeSound()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 mediaRecorder?.resume()
             }
@@ -402,7 +423,6 @@ class AudioRecorderManager(
     suspend fun stopRecording(): RecordingOutput? = withContext(Dispatchers.IO) {
         if (!_recordingState.value.isRecording && currentOutputFile == null) return@withContext null
 
-        playStopSound()
         stopSpeechListening()
         amplitudeJob?.cancel()
 
@@ -415,6 +435,7 @@ class AudioRecorderManager(
             Log.w(tag, "MediaRecorder stop caught (duration may be short): ${e.message}")
         }
         mediaRecorder = null
+        playStopSound()
 
         val duration = max(1000L, _recordingState.value.durationMs)
         var file = currentOutputFile

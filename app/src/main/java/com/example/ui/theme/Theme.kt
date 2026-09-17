@@ -76,6 +76,15 @@ val FallbackLightColorScheme: ColorScheme =
     outlineVariant = FallbackLightOutlineVariant
   )
 
+private fun Color.deepenColor(factor: Float): Color {
+  return Color(
+    red = (red * factor).coerceIn(0f, 1f),
+    green = (green * factor).coerceIn(0f, 1f),
+    blue = (blue * factor).coerceIn(0f, 1f),
+    alpha = alpha
+  )
+}
+
 @Composable
 fun MyApplicationTheme(
   themeMode: ThemeMode? = null,
@@ -94,7 +103,26 @@ fun MyApplicationTheme(
   val context = LocalContext.current
   val colorScheme = when {
     dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
-      if (isDark) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+      if (isDark) {
+        val base = dynamicDarkColorScheme(context)
+        base.copy(
+          background = base.background.deepenColor(0.48f),
+          surface = base.surface.deepenColor(0.48f),
+          surfaceContainerLowest = base.surfaceContainerLowest.deepenColor(0.38f),
+          surfaceContainerLow = base.surfaceContainerLow.deepenColor(0.72f),
+          surfaceContainer = base.surfaceContainer.deepenColor(0.95f),
+          surfaceContainerHigh = base.surfaceContainerHigh.deepenColor(1.02f),
+          surfaceContainerHighest = base.surfaceContainerHighest.deepenColor(1.08f)
+        )
+      } else {
+        val base = dynamicLightColorScheme(context)
+        base.copy(
+          surfaceContainerLow = base.surfaceContainerLow.deepenColor(0.96f),
+          surfaceContainer = base.surfaceContainer.deepenColor(0.93f),
+          surfaceContainerHigh = base.surfaceContainerHigh.deepenColor(0.89f),
+          surfaceContainerHighest = base.surfaceContainerHighest.deepenColor(0.86f)
+        )
+      }
     }
     isDark -> FallbackDarkColorScheme
     else -> FallbackLightColorScheme
