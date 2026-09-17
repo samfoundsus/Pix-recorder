@@ -4,9 +4,6 @@ import android.Manifest
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.media.AudioAttributes
-import android.media.AudioFormat
-import android.media.AudioTrack
 import android.media.MediaRecorder
 import android.os.Build
 import android.os.Bundle
@@ -221,83 +218,6 @@ class AudioRecorderManager(
         }
     }
 
-    private fun playSoundEffect(frequency: Double, durationMs: Int, blocking: Boolean = false) {
-        try {
-            unmuteSystemSounds() // Guarantee unmuted before custom sound
-            val sampleRate = 16000
-            val numSamples = (sampleRate * durationMs) / 1000
-            val samples = ByteArray(numSamples * 2)
-            for (i in 0 until numSamples) {
-                val progress = i.toDouble() / numSamples
-                val envelope = if (progress < 0.1) progress * 10.0 else if (progress > 0.9) (1.0 - progress) * 10.0 else 1.0
-                val angle = 2.0 * Math.PI * i * frequency / sampleRate
-                val v = (Math.sin(angle) * 32767.0 * 0.10 * envelope).toInt().toShort()
-                samples[2 * i] = (v.toInt() and 0x00ff).toByte()
-                samples[2 * i + 1] = ((v.toInt() and 0xff00) ushr 8).toByte()
-            }
-            val audioTrack = AudioTrack.Builder()
-                .setAudioAttributes(
-                    AudioAttributes.Builder()
-                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
-                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
-                        .build()
-                )
-                .setAudioFormat(
-                    AudioFormat.Builder()
-                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
-                        .setSampleRate(sampleRate)
-                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
-                        .build()
-                )
-                .setBufferSizeInBytes(samples.size)
-                .setTransferMode(AudioTrack.MODE_STATIC)
-                .build()
-            audioTrack.write(samples, 0, samples.size)
-            audioTrack.play()
-
-            if (blocking) {
-                try {
-                    // Wait for sound to physically finish playing
-                    Thread.sleep(durationMs.toLong() + 30L)
-                } catch (e: Exception) {}
-                try {
-                    audioTrack.stop()
-                    audioTrack.release()
-                } catch (e: Exception) {}
-                // Additional delay to ensure the OS audio mixer has completely cleared the buffer 
-                // and room echo has dissipated before microphone capture starts.
-                try {
-                    Thread.sleep(350L)
-                } catch (e: Exception) {}
-            } else {
-                mainHandler.postDelayed({
-                    try {
-                        audioTrack.stop()
-                        audioTrack.release()
-                    } catch (e: Exception) {}
-                }, durationMs.toLong() + 100L)
-            }
-        } catch (e: Exception) {
-            Log.w(tag, "Failed to play sound effect: ${e.message}")
-        }
-    }
-
-    private fun playStartSound() {
-        playSoundEffect(587.33, 80, blocking = true)
-    }
-
-    private fun playStopSound() {
-        playSoundEffect(440.0, 100, blocking = false)
-    }
-
-    private fun playPauseSound() {
-        playSoundEffect(523.25, 80, blocking = true)
-    }
-
-    private fun playResumeSound() {
-        playSoundEffect(659.25, 80, blocking = true)
-    }
-
     fun startRecording(): Boolean {
         val hasPermission = ContextCompat.checkSelfPermission(
             context,
@@ -310,9 +230,6 @@ class AudioRecorderManager(
         }
 
         try {
-            // PLAY START SOUND BEFORE ANY MICROPHONE INITIALIZATION
-            playStartSound()
-
             val recordingsDir = settingsManager.getRecordingsDirectory()
 
             val formatOpt = settingsManager.audioFormat.value
@@ -421,14 +338,9 @@ class AudioRecorderManager(
     fun pauseRecording() {
         if (!_recordingState.value.isRecording || _recordingState.value.isPaused) return
         try {
-            // PAUSE MICROPHONE BEFORE PLAYING SOUND
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 mediaRecorder?.pause()
             }
-            try {
-                Thread.sleep(150L) // Wait for microphone buffer to flush before playing sound
-            } catch (e: Exception) {}
-            playPauseSound()
             pauseTimestampMs = System.currentTimeMillis()
             stopSpeechListening()
             _recordingState.value = _recordingState.value.copy(
@@ -444,8 +356,6 @@ class AudioRecorderManager(
     fun resumeRecording() {
         if (!_recordingState.value.isRecording || !_recordingState.value.isPaused) return
         try {
-            // PLAY SOUND BEFORE RESUMING MICROPHONE
-            playResumeSound()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 mediaRecorder?.resume()
             }
@@ -478,14 +388,6 @@ class AudioRecorderManager(
             Log.w(tag, "MediaRecorder stop caught (duration may be short): ${e.message}")
         }
         mediaRecorder = null
-        
-        // Wait to guarantee OS microphone pipeline is dead
-        delay(150L)
-        
-        unmuteSystemSounds() // Guarantee unmuted before our custom stop sound
-        
-        // PLAY STOP SOUND ONLY AFTER MICROPHONE IS STOPPED AND RELEASED
-        playStopSound()
 
         val duration = max(1000L, _recordingState.value.durationMs)
         var file = currentOutputFile

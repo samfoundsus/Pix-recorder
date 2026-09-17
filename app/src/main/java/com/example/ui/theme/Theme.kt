@@ -1,5 +1,6 @@
 package com.example.ui.theme
 
+import android.app.Activity
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.ColorScheme
@@ -9,14 +10,23 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.compositionLocalOf
+import androidx.compose.runtime.key
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.core.view.WindowCompat
 
 enum class ThemeMode {
   LIGHT,
   DARK,
   SYSTEM
 }
+
+val LocalThemeMode = compositionLocalOf { ThemeMode.SYSTEM }
+val LocalIsDarkTheme = compositionLocalOf { false }
 
 val FallbackDarkColorScheme: ColorScheme =
   darkColorScheme(
@@ -109,13 +119,25 @@ fun MyApplicationTheme(
     null -> darkTheme
   }
 
+  val view = LocalView.current
+  if (!view.isInEditMode) {
+    SideEffect {
+      val window = (view.context as? Activity)?.window
+      if (window != null) {
+        val insetsController = WindowCompat.getInsetsController(window, view)
+        insetsController.isAppearanceLightStatusBars = !isDark
+        insetsController.isAppearanceLightNavigationBars = !isDark
+      }
+    }
+  }
+
   val context = LocalContext.current
   val colorScheme = when {
     dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
       if (isDark) {
         val base = dynamicDarkColorScheme(context)
-        val tintedBg = base.background.deepenColor(0.72f).blendWith(base.primaryContainer, 0.25f)
-        val tintedSurface = base.surface.deepenColor(0.72f).blendWith(base.primaryContainer, 0.25f)
+        val tintedBg = base.background.deepenColor(0.72f).blendWith(base.primaryContainer, 0.25f).deepenColor(0.90f)
+        val tintedSurface = base.surface.deepenColor(0.72f).blendWith(base.primaryContainer, 0.25f).deepenColor(0.90f)
         base.copy(
           background = tintedBg,
           surface = tintedSurface,
@@ -144,6 +166,15 @@ fun MyApplicationTheme(
     else -> FallbackLightColorScheme
   }
 
-  MaterialTheme(colorScheme = colorScheme, typography = Typography, content = content)
+  MaterialTheme(colorScheme = colorScheme, typography = Typography) {
+    CompositionLocalProvider(
+      LocalThemeMode provides (themeMode ?: ThemeMode.SYSTEM),
+      LocalIsDarkTheme provides isDark
+    ) {
+      key(isDark, themeMode) {
+        content()
+      }
+    }
+  }
 }
 

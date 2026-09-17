@@ -99,6 +99,7 @@ import kotlinx.coroutines.launch
 @Composable
 fun SettingsScreen(
     settingsManager: SettingsManager,
+    themeMode: ThemeMode? = null,
     onBack: () -> Unit,
     onPausePlayback: () -> Unit = {},
     modifier: Modifier = Modifier
@@ -132,7 +133,8 @@ fun SettingsScreen(
     val autoTranscriptionEnabled by settingsManager.autoTranscriptionEnabled.collectAsStateWithLifecycle()
     val skipForwardSec by settingsManager.skipForwardSec.collectAsStateWithLifecycle()
     val skipBackwardSec by settingsManager.skipBackwardSec.collectAsStateWithLifecycle()
-    val themeMode by settingsManager.themeMode.collectAsStateWithLifecycle()
+    val storedThemeMode by settingsManager.themeMode.collectAsStateWithLifecycle()
+    val activeThemeMode = themeMode ?: storedThemeMode
     val storageStats by settingsManager.storageStats.collectAsStateWithLifecycle()
 
     // Dialog state
@@ -311,13 +313,13 @@ fun SettingsScreen(
             item {
                 SettingsCardGroup {
                     SettingsPreferenceRow(
-                        icon = when (themeMode) {
+                        icon = when (activeThemeMode) {
                             ThemeMode.SYSTEM -> Icons.Outlined.BrightnessAuto
                             ThemeMode.LIGHT -> Icons.Outlined.LightMode
                             ThemeMode.DARK -> Icons.Outlined.DarkMode
                         },
                         title = "Theme",
-                        subtitle = when (themeMode) {
+                        subtitle = when (activeThemeMode) {
                             ThemeMode.SYSTEM -> "System default"
                             ThemeMode.LIGHT -> "Light"
                             ThemeMode.DARK -> "Dark"
@@ -562,7 +564,7 @@ fun SettingsScreen(
         SingleChoiceDialog(
             title = "Theme",
             options = listOf(ThemeMode.SYSTEM, ThemeMode.LIGHT, ThemeMode.DARK),
-            selectedOption = themeMode,
+            selectedOption = activeThemeMode,
             optionLabel = {
                 when (it) {
                     ThemeMode.SYSTEM -> "System default"

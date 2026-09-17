@@ -37,6 +37,7 @@ import com.example.ui.screens.PlaybackScreen
 import com.example.ui.screens.RecordScreen
 import com.example.ui.screens.SettingsScreen
 import com.example.ui.theme.MyApplicationTheme
+import com.example.ui.theme.ThemeMode
 
 class MainActivity : ComponentActivity() {
 
@@ -52,7 +53,7 @@ class MainActivity : ComponentActivity() {
           modifier = Modifier.fillMaxSize(),
           color = MaterialTheme.colorScheme.background
         ) {
-          PixelRecorderApp(viewModel = viewModel)
+          PixelRecorderApp(viewModel = viewModel, themeMode = themeMode)
         }
       }
     }
@@ -71,7 +72,7 @@ class MainActivity : ComponentActivity() {
 
 @OptIn(ExperimentalSharedTransitionApi::class)
 @Composable
-fun PixelRecorderApp(viewModel: RecorderViewModel) {
+fun PixelRecorderApp(viewModel: RecorderViewModel, themeMode: ThemeMode = ThemeMode.SYSTEM) {
   val currentScreen by viewModel.currentScreen.collectAsStateWithLifecycle()
 
   BackHandler(enabled = currentScreen != AppScreen.LIBRARY) {
@@ -217,6 +218,7 @@ fun PixelRecorderApp(viewModel: RecorderViewModel) {
         AppScreen.SETTINGS -> {
           SettingsScreen(
             settingsManager = viewModel.settingsManager,
+            themeMode = themeMode,
             onBack = {
               viewModel.pausePlayback()
               viewModel.closeSettings()
