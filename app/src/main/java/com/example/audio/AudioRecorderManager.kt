@@ -91,6 +91,38 @@ class AudioRecorderManager(
 
     private var speechErrorCount = 0
 
+    private var isSystemMuted = false
+
+    private fun muteSystemSounds() {
+        if (isSystemMuted) return
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        try {
+            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_MUTE, 0)
+        } catch (e: Exception) {}
+        try {
+            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_SYSTEM, android.media.AudioManager.ADJUST_MUTE, 0)
+        } catch (e: Exception) {}
+        try {
+            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_NOTIFICATION, android.media.AudioManager.ADJUST_MUTE, 0)
+        } catch (e: Exception) {}
+        isSystemMuted = true
+    }
+
+    private fun unmuteSystemSounds() {
+        if (!isSystemMuted) return
+        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
+        try {
+            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_UNMUTE, 0)
+        } catch (e: Exception) {}
+        try {
+            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_SYSTEM, android.media.AudioManager.ADJUST_UNMUTE, 0)
+        } catch (e: Exception) {}
+        try {
+            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_NOTIFICATION, android.media.AudioManager.ADJUST_UNMUTE, 0)
+        } catch (e: Exception) {}
+        isSystemMuted = false
+    }
+
     private fun ensureSpeechRecognizerCreated() {
         if (speechRecognizer != null) return
         try {
@@ -162,7 +194,9 @@ class AudioRecorderManager(
             try {
                 ensureSpeechRecognizerCreated()
                 recognitionIntent?.let { intent ->
+                    muteSystemSounds()
                     speechRecognizer?.startListening(intent)
+                    mainHandler.postDelayed({ unmuteSystemSounds() }, 500)
                 }
             } catch (e: Exception) {
                 Log.w(tag, "startListening error: ${e.message}")
@@ -173,11 +207,14 @@ class AudioRecorderManager(
     private fun stopSpeechListening() {
         mainHandler.post {
             try {
+                muteSystemSounds()
                 speechRecognizer?.stopListening()
                 speechRecognizer?.cancel()
                 speechRecognizer?.destroy()
+                mainHandler.postDelayed({ unmuteSystemSounds() }, 500)
             } catch (e: Exception) {
                 Log.w(tag, "stopListening error: ${e.message}")
+                unmuteSystemSounds()
             } finally {
                 speechRecognizer = null
             }
@@ -186,6 +223,7 @@ class AudioRecorderManager(
 
     private fun playSoundEffect(frequency: Double, durationMs: Int, blocking: Boolean = false) {
         try {
+            unmuteSystemSounds() // Guarantee unmuted before custom sound
             val sampleRate = 16000
             val numSamples = (sampleRate * durationMs) / 1000
             val samples = ByteArray(numSamples * 2)
@@ -229,7 +267,7 @@ class AudioRecorderManager(
                 // Additional delay to ensure the OS audio mixer has completely cleared the buffer 
                 // and room echo has dissipated before microphone capture starts.
                 try {
-                    Thread.sleep(150L)
+                    Thread.sleep(350L)
                 } catch (e: Exception) {}
             } else {
                 mainHandler.postDelayed({
@@ -253,7 +291,7 @@ class AudioRecorderManager(
     }
 
     private fun playPauseSound() {
-        playSoundEffect(523.25, 80, blocking = false)
+        playSoundEffect(523.25, 80, blocking = true)
     }
 
     private fun playResumeSound() {
@@ -387,6 +425,9 @@ class AudioRecorderManager(
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 mediaRecorder?.pause()
             }
+            try {
+                Thread.sleep(150L) // Wait for microphone buffer to flush before playing sound
+            } catch (e: Exception) {}
             playPauseSound()
             pauseTimestampMs = System.currentTimeMillis()
             stopSpeechListening()
@@ -437,6 +478,11 @@ class AudioRecorderManager(
             Log.w(tag, "MediaRecorder stop caught (duration may be short): ${e.message}")
         }
         mediaRecorder = null
+        
+        // Wait to guarantee OS microphone pipeline is dead
+        delay(150L)
+        
+        unmuteSystemSounds() // Guarantee unmuted before our custom stop sound
         
         // PLAY STOP SOUND ONLY AFTER MICROPHONE IS STOPPED AND RELEASED
         playStopSound()
