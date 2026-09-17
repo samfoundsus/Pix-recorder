@@ -107,21 +107,9 @@ class AudioRecorderManager(
 
                     override fun onError(error: Int) {
                         Log.d(tag, "SpeechRecognizer error: $error")
-                        speechErrorCount++
-                        if (_recordingState.value.isRecording && !_recordingState.value.isPaused) {
-                            if (error != SpeechRecognizer.ERROR_AUDIO &&
-                                error != SpeechRecognizer.ERROR_CLIENT &&
-                                error != SpeechRecognizer.ERROR_RECOGNIZER_BUSY &&
-                                speechErrorCount <= 2) {
-                                mainHandler.postDelayed({
-                                    if (_recordingState.value.isRecording && !_recordingState.value.isPaused) {
-                                        startSpeechListening()
-                                    }
-                                }, 2500)
-                            } else {
-                                Log.w(tag, "SpeechRecognizer paused retries to maintain continuous microphone capture.")
-                            }
-                        }
+                        // Do NOT restart SpeechRecognizer here. 
+                        // Restarting reinitializes the microphone and triggers system ON/OFF beeps, 
+                        // violating continuous stable capture.
                     }
 
                     override fun onResults(results: Bundle?) {
@@ -131,9 +119,8 @@ class AudioRecorderManager(
                         if (!text.isNullOrEmpty()) {
                             addTranscriptSegment(text)
                         }
-                        if (_recordingState.value.isRecording && !_recordingState.value.isPaused) {
-                            startSpeechListening()
-                        }
+                        // Do NOT restart SpeechRecognizer here.
+                        // Keeping it continuous means one session until it naturally completes, preventing system beeps.
                     }
 
                     override fun onPartialResults(partialResults: Bundle?) {
@@ -159,6 +146,9 @@ class AudioRecorderManager(
                 }
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
+                // Attempt to extend listening time to prevent early cutoff
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 10000L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 10000L)
             }
         } catch (e: Exception) {
             Log.w(tag, "Failed to create SpeechRecognizer: ${e.message}")
@@ -172,7 +162,6 @@ class AudioRecorderManager(
             try {
                 ensureSpeechRecognizerCreated()
                 recognitionIntent?.let { intent ->
-                    muteSystemSounds()
                     speechRecognizer?.startListening(intent)
                 }
             } catch (e: Exception) {
@@ -195,30 +184,80 @@ class AudioRecorderManager(
         }
     }
 
-    private var isSystemMuted = false
+    private fun playSoundEffect(frequency: Double, durationMs: Int, blocking: Boolean = false) {
+        try {
+            val sampleRate = 16000
+            val numSamples = (sampleRate * durationMs) / 1000
+            val samples = ByteArray(numSamples * 2)
+            for (i in 0 until numSamples) {
+                val progress = i.toDouble() / numSamples
+                val envelope = if (progress < 0.1) progress * 10.0 else if (progress > 0.9) (1.0 - progress) * 10.0 else 1.0
+                val angle = 2.0 * Math.PI * i * frequency / sampleRate
+                val v = (Math.sin(angle) * 32767.0 * 0.10 * envelope).toInt().toShort()
+                samples[2 * i] = (v.toInt() and 0x00ff).toByte()
+                samples[2 * i + 1] = ((v.toInt() and 0xff00) ushr 8).toByte()
+            }
+            val audioTrack = AudioTrack.Builder()
+                .setAudioAttributes(
+                    AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ASSISTANCE_SONIFICATION)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                        .build()
+                )
+                .setAudioFormat(
+                    AudioFormat.Builder()
+                        .setEncoding(AudioFormat.ENCODING_PCM_16BIT)
+                        .setSampleRate(sampleRate)
+                        .setChannelMask(AudioFormat.CHANNEL_OUT_MONO)
+                        .build()
+                )
+                .setBufferSizeInBytes(samples.size)
+                .setTransferMode(AudioTrack.MODE_STATIC)
+                .build()
+            audioTrack.write(samples, 0, samples.size)
+            audioTrack.play()
 
-    private fun muteSystemSounds() {
-        if (isSystemMuted) return
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        try {
-            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_MUTE, 0)
-        } catch (e: Exception) {}
-        try {
-            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_SYSTEM, android.media.AudioManager.ADJUST_MUTE, 0)
-        } catch (e: Exception) {}
-        isSystemMuted = true
+            if (blocking) {
+                try {
+                    // Wait for sound to physically finish playing
+                    Thread.sleep(durationMs.toLong() + 30L)
+                } catch (e: Exception) {}
+                try {
+                    audioTrack.stop()
+                    audioTrack.release()
+                } catch (e: Exception) {}
+                // Additional delay to ensure the OS audio mixer has completely cleared the buffer 
+                // and room echo has dissipated before microphone capture starts.
+                try {
+                    Thread.sleep(150L)
+                } catch (e: Exception) {}
+            } else {
+                mainHandler.postDelayed({
+                    try {
+                        audioTrack.stop()
+                        audioTrack.release()
+                    } catch (e: Exception) {}
+                }, durationMs.toLong() + 100L)
+            }
+        } catch (e: Exception) {
+            Log.w(tag, "Failed to play sound effect: ${e.message}")
+        }
     }
 
-    private fun unmuteSystemSounds() {
-        if (!isSystemMuted) return
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        try {
-            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_UNMUTE, 0)
-        } catch (e: Exception) {}
-        try {
-            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_SYSTEM, android.media.AudioManager.ADJUST_UNMUTE, 0)
-        } catch (e: Exception) {}
-        isSystemMuted = false
+    private fun playStartSound() {
+        playSoundEffect(587.33, 80, blocking = true)
+    }
+
+    private fun playStopSound() {
+        playSoundEffect(440.0, 100, blocking = false)
+    }
+
+    private fun playPauseSound() {
+        playSoundEffect(523.25, 80, blocking = false)
+    }
+
+    private fun playResumeSound() {
+        playSoundEffect(659.25, 80, blocking = true)
     }
 
     fun startRecording(): Boolean {
@@ -233,7 +272,9 @@ class AudioRecorderManager(
         }
 
         try {
-            muteSystemSounds()
+            // PLAY START SOUND BEFORE ANY MICROPHONE INITIALIZATION
+            playStartSound()
+
             val recordingsDir = settingsManager.getRecordingsDirectory()
 
             val formatOpt = settingsManager.audioFormat.value
@@ -319,7 +360,6 @@ class AudioRecorderManager(
     private fun handleRecorderFailure(reason: String) {
         Log.e(tag, "Recording failed or interrupted: $reason")
         stopSpeechListening()
-        unmuteSystemSounds()
         amplitudeJob?.cancel()
         amplitudeJob = null
 
@@ -343,9 +383,11 @@ class AudioRecorderManager(
     fun pauseRecording() {
         if (!_recordingState.value.isRecording || _recordingState.value.isPaused) return
         try {
+            // PAUSE MICROPHONE BEFORE PLAYING SOUND
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 mediaRecorder?.pause()
             }
+            playPauseSound()
             pauseTimestampMs = System.currentTimeMillis()
             stopSpeechListening()
             _recordingState.value = _recordingState.value.copy(
@@ -361,6 +403,8 @@ class AudioRecorderManager(
     fun resumeRecording() {
         if (!_recordingState.value.isRecording || !_recordingState.value.isPaused) return
         try {
+            // PLAY SOUND BEFORE RESUMING MICROPHONE
+            playResumeSound()
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
                 mediaRecorder?.resume()
             }
@@ -393,7 +437,9 @@ class AudioRecorderManager(
             Log.w(tag, "MediaRecorder stop caught (duration may be short): ${e.message}")
         }
         mediaRecorder = null
-        unmuteSystemSounds()
+        
+        // PLAY STOP SOUND ONLY AFTER MICROPHONE IS STOPPED AND RELEASED
+        playStopSound()
 
         val duration = max(1000L, _recordingState.value.durationMs)
         var file = currentOutputFile
@@ -429,7 +475,6 @@ class AudioRecorderManager(
 
     fun cancelRecording() {
         stopSpeechListening()
-        unmuteSystemSounds()
         amplitudeJob?.cancel()
         try {
             mediaRecorder?.apply {
