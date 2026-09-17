@@ -1,4 +1,5 @@
 import com.google.gms.googleservices.GoogleServicesPlugin.MissingGoogleServicesStrategy
+import java.util.Base64
 
 plugins {
   alias(libs.plugins.android.application)
@@ -17,8 +18,8 @@ android {
     applicationId = "com.aistudio.pixelrecorder.voxrec"
     minSdk = 24
     targetSdk = 34
-    versionCode = 1
-    versionName = "1.0"
+    versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 2
+    versionName = (project.findProperty("appVersionName") as? String) ?: "1.0.2"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -26,10 +27,30 @@ android {
   signingConfigs {
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      val releaseStoreFile = file(keystorePath)
+      val storePasswordEnv = System.getenv("STORE_PASSWORD")
+      if (releaseStoreFile.exists() && !storePasswordEnv.isNullOrEmpty()) {
+        storeFile = releaseStoreFile
+        storePassword = storePasswordEnv
+        keyAlias = System.getenv("KEY_ALIAS") ?: "upload"
+        keyPassword = System.getenv("KEY_PASSWORD") ?: storePasswordEnv
+      } else {
+        // Fallback to the project's consistent keystore so release builds can be built and updated consistently
+        val localDebugKeystore = file("${rootDir}/debug.keystore")
+        val base64Keystore = file("${rootDir}/debug.keystore.base64")
+        if (!localDebugKeystore.exists() && base64Keystore.exists()) {
+          try {
+            val decoded = Base64.getDecoder().decode(base64Keystore.readText().trim())
+            localDebugKeystore.writeBytes(decoded)
+          } catch (_: Exception) {}
+        }
+        if (localDebugKeystore.exists()) {
+          storeFile = localDebugKeystore
+          storePassword = "android"
+          keyAlias = "androiddebugkey"
+          keyPassword = "android"
+        }
+      }
       enableV1Signing = true
       enableV2Signing = true
       enableV3Signing = true
@@ -37,6 +58,13 @@ android {
     }
     getByName("debug") {
       val localDebugKeystore = file("${rootDir}/debug.keystore")
+      val base64Keystore = file("${rootDir}/debug.keystore.base64")
+      if (!localDebugKeystore.exists() && base64Keystore.exists()) {
+        try {
+          val decoded = Base64.getDecoder().decode(base64Keystore.readText().trim())
+          localDebugKeystore.writeBytes(decoded)
+        } catch (_: Exception) {}
+      }
       if (localDebugKeystore.exists()) {
         storeFile = localDebugKeystore
         storePassword = "android"
