@@ -46,6 +46,7 @@ class MainActivity : ComponentActivity() {
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
     enableEdgeToEdge()
+    window.decorView.isSoundEffectsEnabled = false
     setContent {
       val themeMode by viewModel.themeMode.collectAsStateWithLifecycle()
       MyApplicationTheme(themeMode = themeMode) {
@@ -138,7 +139,7 @@ fun PixelRecorderApp(viewModel: RecorderViewModel, themeMode: ThemeMode = ThemeM
             isStorageConfigured = !storageTreeUri.isNullOrBlank() && viewModel.isStorageLocationConfigured(),
             onStorageFolderSelected = { uri -> viewModel.setStorageFolderUri(uri) },
             onRecordClick = { viewModel.startNewRecording() },
-            onCardClick = { recording -> viewModel.openRecordingPlayback(recording.id) },
+            onCardClick = { recording -> viewModel.openRecordingPlayback(recording.id, initialRecording = recording) },
             onPlayPause = { recording ->
               viewModel.playRecordingInline(recording)
             },
@@ -211,7 +212,9 @@ fun PixelRecorderApp(viewModel: RecorderViewModel, themeMode: ThemeMode = ThemeM
               animatedVisibilityScope = this@AnimatedContent
             )
           } else {
-            viewModel.backToLibrary()
+            if (viewModel.selectedRecordingId.value == null) {
+              viewModel.backToLibrary()
+            }
           }
         }
 

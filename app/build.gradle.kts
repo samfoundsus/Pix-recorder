@@ -18,8 +18,8 @@ android {
     applicationId = "com.aistudio.pixelrecorder.voxrec"
     minSdk = 24
     targetSdk = 34
-    versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 2
-    versionName = (project.findProperty("appVersionName") as? String) ?: "1.0.2"
+    versionCode = (project.findProperty("appVersionCode") as? String)?.toIntOrNull() ?: 3
+    versionName = (project.findProperty("appVersionName") as? String) ?: "1.0.3"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }

@@ -22,6 +22,7 @@ import com.example.transcription.TranscriptionStage
 import com.example.transcription.TranscriptionState
 import com.example.ui.theme.ThemeMode
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -29,6 +30,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.flowOn
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -154,23 +156,8 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         _currentScreen.value = AppScreen.LIBRARY
     }
 
-    init {
-        viewModelScope.launch {
-            _selectedRecordingId.collect { id ->
-                if (id != null) {
-                    try {
-                        repository.getRecordingById(id).collect { entity ->
-                            _selectedRecording.value = entity
-                        }
-                    } catch (e: Exception) {
-                        _selectedRecording.value = null
-                    }
-                } else {
-                    _selectedRecording.value = null
-                }
-            }
-        }
-    }
+    private var selectionObserverJob: Job? = null
+    private var playerLoadJob: Job? = null
 
     fun setSearchQuery(query: String) {
         _searchQuery.value = query
@@ -249,7 +236,7 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
 
                 val newId = repository.insertRecording(entity)
                 settingsManager.refreshStorageStats()
-                openRecordingPlayback(newId)
+                openRecordingPlayback(newId, initialRecording = entity.copy(id = newId))
 
                 // Automatic transcription if enabled in settings
                 if (settingsManager.autoTranscriptionEnabled.value) {
@@ -261,27 +248,67 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         }
     }
 
-    fun openRecordingPlayback(id: Long) {
+    fun openRecordingPlayback(id: Long, initialRecording: RecordingEntity? = null) {
+        // Cancel any pending player load or database observation for previous recordings
+        playerLoadJob?.cancel()
+        selectionObserverJob?.cancel()
+
+        // 1. Immediately update identity and state synchronously
         _selectedRecordingId.value = id
+        val resolvedRecording = initialRecording
+            ?: recordingsList.value.firstOrNull { it.id == id }
+            ?: _selectedRecording.value?.takeIf { it.id == id }
+
+        _selectedRecording.value = resolvedRecording
         _recordingDetailTab.value = 0
+
+        // 2. Immediately reset playback state to match the newly selected recording
+        playerManager.resetForRecording(id, resolvedRecording?.durationMs ?: 0L)
+
+        // 3. Immediately switch screen — guaranteed non-null so detail screen opens on FIRST tap
         _currentScreen.value = AppScreen.PLAYBACK
 
-        viewModelScope.launch {
-            val recording = repository.getRecordingById(id).first()
-            if (recording != null && recording.filePath.isNotBlank()) {
-                playerManager.loadIfNotLoaded(recording.id, recording.filePath, recording.durationMs, autoPlay = true)
+        // 4. Observe this recording from repository by its unique ID
+        selectionObserverJob = viewModelScope.launch {
+            repository.getRecordingById(id).collect { entity ->
+                // Guard: Only apply update if this is STILL the selected recording ID
+                if (_selectedRecordingId.value == id && entity != null) {
+                    _selectedRecording.value = entity
+                }
+            }
+        }
+
+        // 5. Asynchronously load and prepare playback for this specific recording
+        playerLoadJob = viewModelScope.launch {
+            val targetRecording = resolvedRecording ?: repository.getRecordingById(id).firstOrNull()
+            if (targetRecording != null && targetRecording.filePath.isNotBlank()) {
+                if (_selectedRecordingId.value == id) {
+                    playerManager.loadIfNotLoaded(
+                        targetRecording.id,
+                        targetRecording.filePath,
+                        targetRecording.durationMs,
+                        autoPlay = true
+                    )
+                }
             }
         }
     }
 
     fun closePlayback() {
+        playerLoadJob?.cancel()
+        selectionObserverJob?.cancel()
         playerManager.pause()
         _selectedRecordingId.value = null
+        _selectedRecording.value = null
         _currentScreen.value = AppScreen.LIBRARY
     }
 
     fun backToLibrary() {
+        playerLoadJob?.cancel()
+        selectionObserverJob?.cancel()
         playerManager.pause()
+        _selectedRecordingId.value = null
+        _selectedRecording.value = null
         _currentScreen.value = AppScreen.LIBRARY
     }
 
@@ -364,8 +391,11 @@ class RecorderViewModel(application: Application) : AndroidViewModel(application
         viewModelScope.launch {
             for (recordingId in recordingIds) {
                 if (_selectedRecordingId.value == recordingId) {
+                    playerLoadJob?.cancel()
+                    selectionObserverJob?.cancel()
                     playerManager.stop()
                     _selectedRecordingId.value = null
+                    _selectedRecording.value = null
                     _currentScreen.value = AppScreen.LIBRARY
                 }
                 val rec = repository.getRecordingById(recordingId).first()

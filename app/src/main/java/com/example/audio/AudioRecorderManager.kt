@@ -9,9 +9,6 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
-import android.speech.RecognitionListener
-import android.speech.RecognizerIntent
-import android.speech.SpeechRecognizer
 import android.util.Log
 import androidx.core.content.ContextCompat
 import com.example.data.model.TranscriptSegment
@@ -67,8 +64,6 @@ class AudioRecorderManager(
     private val _amplitudeFlow = MutableStateFlow<List<Float>>(emptyList())
     val amplitudeFlow: StateFlow<List<Float>> = _amplitudeFlow.asStateFlow()
 
-    private var speechRecognizer: SpeechRecognizer? = null
-    private var recognitionIntent: Intent? = null
     private val mainHandler = Handler(Looper.getMainLooper())
 
     private var amplitudeJob: Job? = null
@@ -81,142 +76,6 @@ class AudioRecorderManager(
     private val transcriptSegments = mutableListOf<TranscriptSegment>()
     private var segmentStartMs = 0L
     private var lastSpeechDetectedMs = 0L
-
-    init {
-        // SpeechRecognizer is initialized lazily when recording starts with permissions granted
-    }
-
-    private var speechErrorCount = 0
-
-    private var isSystemMuted = false
-
-    private fun muteSystemSounds() {
-        if (isSystemMuted) return
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        try {
-            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_MUTE, 0)
-        } catch (e: Exception) {}
-        try {
-            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_SYSTEM, android.media.AudioManager.ADJUST_MUTE, 0)
-        } catch (e: Exception) {}
-        try {
-            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_NOTIFICATION, android.media.AudioManager.ADJUST_MUTE, 0)
-        } catch (e: Exception) {}
-        isSystemMuted = true
-    }
-
-    private fun unmuteSystemSounds() {
-        if (!isSystemMuted) return
-        val audioManager = context.getSystemService(Context.AUDIO_SERVICE) as android.media.AudioManager
-        try {
-            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_MUSIC, android.media.AudioManager.ADJUST_UNMUTE, 0)
-        } catch (e: Exception) {}
-        try {
-            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_SYSTEM, android.media.AudioManager.ADJUST_UNMUTE, 0)
-        } catch (e: Exception) {}
-        try {
-            audioManager.adjustStreamVolume(android.media.AudioManager.STREAM_NOTIFICATION, android.media.AudioManager.ADJUST_UNMUTE, 0)
-        } catch (e: Exception) {}
-        isSystemMuted = false
-    }
-
-    private fun ensureSpeechRecognizerCreated() {
-        if (speechRecognizer != null) return
-        try {
-            speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
-                setRecognitionListener(object : RecognitionListener {
-                    override fun onReadyForSpeech(params: Bundle?) {}
-                    override fun onBeginningOfSpeech() {
-                        lastSpeechDetectedMs = System.currentTimeMillis()
-                    }
-
-                    override fun onRmsChanged(rmsdB: Float) {}
-                    override fun onBufferReceived(buffer: ByteArray?) {}
-                    override fun onEndOfSpeech() {}
-
-                    override fun onError(error: Int) {
-                        Log.d(tag, "SpeechRecognizer error: $error")
-                        // Do NOT restart SpeechRecognizer here. 
-                        // Restarting reinitializes the microphone and triggers system ON/OFF beeps, 
-                        // violating continuous stable capture.
-                    }
-
-                    override fun onResults(results: Bundle?) {
-                        speechErrorCount = 0
-                        val matches = results?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        val text = matches?.firstOrNull()?.trim()
-                        if (!text.isNullOrEmpty()) {
-                            addTranscriptSegment(text)
-                        }
-                        // Do NOT restart SpeechRecognizer here.
-                        // Keeping it continuous means one session until it naturally completes, preventing system beeps.
-                    }
-
-                    override fun onPartialResults(partialResults: Bundle?) {
-                        val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
-                        val partialText = matches?.firstOrNull()?.trim().orEmpty()
-                        _recordingState.value = _recordingState.value.copy(
-                            liveTranscript = partialText
-                        )
-                    }
-
-                    override fun onEvent(eventType: Int, params: Bundle?) {}
-                })
-            }
-
-            val selectedLang = settingsManager.transcriptionLanguage.value
-            recognitionIntent = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH).apply {
-                putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                if (selectedLang.code.isNotBlank()) {
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, selectedLang.code)
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, selectedLang.code)
-                } else {
-                    putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault())
-                }
-                putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
-                putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 1)
-                // Attempt to extend listening time to prevent early cutoff
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 10000L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 10000L)
-            }
-        } catch (e: Exception) {
-            Log.w(tag, "Failed to create SpeechRecognizer: ${e.message}")
-            speechRecognizer = null
-        }
-    }
-
-    private fun startSpeechListening() {
-        if (!settingsManager.autoTranscriptionEnabled.value) return
-        mainHandler.post {
-            try {
-                ensureSpeechRecognizerCreated()
-                recognitionIntent?.let { intent ->
-                    muteSystemSounds()
-                    speechRecognizer?.startListening(intent)
-                    mainHandler.postDelayed({ unmuteSystemSounds() }, 500)
-                }
-            } catch (e: Exception) {
-                Log.w(tag, "startListening error: ${e.message}")
-            }
-        }
-    }
-
-    private fun stopSpeechListening() {
-        mainHandler.post {
-            try {
-                muteSystemSounds()
-                speechRecognizer?.stopListening()
-                speechRecognizer?.cancel()
-                speechRecognizer?.destroy()
-                mainHandler.postDelayed({ unmuteSystemSounds() }, 500)
-            } catch (e: Exception) {
-                Log.w(tag, "stopListening error: ${e.message}")
-                unmuteSystemSounds()
-            } finally {
-                speechRecognizer = null
-            }
-        }
-    }
 
     fun startRecording(): Boolean {
         val hasPermission = ContextCompat.checkSelfPermission(
@@ -286,22 +145,17 @@ class AudioRecorderManager(
             recordedAmplitudes.clear()
             transcriptSegments.clear()
 
-            val initialTranscriptText = if (settingsManager.autoTranscriptionEnabled.value) "Listening..." else "Transcripts off"
-
             _recordingState.value = ActiveRecordingState(
                 isRecording = true,
                 isPaused = false,
                 durationMs = 0L,
                 amplitudes = emptyList(),
                 segments = emptyList(),
-                liveTranscript = initialTranscriptText,
+                liveTranscript = "",
                 currentDb = 0f
             )
             _amplitudeFlow.value = emptyList()
 
-            if (settingsManager.autoTranscriptionEnabled.value) {
-                startSpeechListening()
-            }
             startAmplitudePolling()
 
             return true
@@ -314,7 +168,6 @@ class AudioRecorderManager(
 
     private fun handleRecorderFailure(reason: String) {
         Log.e(tag, "Recording failed or interrupted: $reason")
-        stopSpeechListening()
         amplitudeJob?.cancel()
         amplitudeJob = null
 
@@ -342,7 +195,6 @@ class AudioRecorderManager(
                 mediaRecorder?.pause()
             }
             pauseTimestampMs = System.currentTimeMillis()
-            stopSpeechListening()
             _recordingState.value = _recordingState.value.copy(
                 isPaused = true,
                 liveTranscript = "Paused"
@@ -362,10 +214,9 @@ class AudioRecorderManager(
             if (pauseTimestampMs > 0) {
                 pausedDurationMs += (System.currentTimeMillis() - pauseTimestampMs)
             }
-            startSpeechListening()
             _recordingState.value = _recordingState.value.copy(
                 isPaused = false,
-                liveTranscript = "Listening..."
+                liveTranscript = ""
             )
         } catch (e: Exception) {
             Log.e(tag, "Failed to resume recording: ${e.message}", e)
@@ -376,7 +227,6 @@ class AudioRecorderManager(
     suspend fun stopRecording(): RecordingOutput? = withContext(Dispatchers.IO) {
         if (!_recordingState.value.isRecording && currentOutputFile == null) return@withContext null
 
-        stopSpeechListening()
         amplitudeJob?.cancel()
 
         try {
@@ -422,7 +272,6 @@ class AudioRecorderManager(
     }
 
     fun cancelRecording() {
-        stopSpeechListening()
         amplitudeJob?.cancel()
         try {
             mediaRecorder?.apply {
@@ -550,13 +399,5 @@ class AudioRecorderManager(
 
     fun release() {
         cancelRecording()
-        mainHandler.post {
-            try {
-                speechRecognizer?.destroy()
-                speechRecognizer = null
-            } catch (e: Exception) {
-                // Ignore
-            }
-        }
     }
 }

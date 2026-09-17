@@ -252,6 +252,18 @@ class AudioPlayerManager(
         }
     }
 
+    fun resetForRecording(recordingId: Long, durationMs: Long) {
+        stop()
+        val recordingSpeed = settingsManager.getRecordingSpeed(recordingId)
+        _playerState.value = PlayerState(
+            currentRecordingId = recordingId,
+            isPlaying = false,
+            currentPositionMs = 0L,
+            totalDurationMs = durationMs,
+            speed = recordingSpeed
+        )
+    }
+
     fun stop() {
         progressJob?.cancel()
         progressJob = null

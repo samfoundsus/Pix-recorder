@@ -138,6 +138,15 @@ fun PlaybackScreen(
     }
     val availableSpeeds = remember { listOf(0.5f, 0.75f, 1.0f, 1.25f, 1.5f, 2.0f) }
 
+    val isForThisRecording = playerState.currentRecordingId == recording.id
+    val effectivePositionMs = if (isForThisRecording) playerState.currentPositionMs else 0L
+    val effectiveDurationMs = if (isForThisRecording && playerState.totalDurationMs > 0L) {
+        playerState.totalDurationMs
+    } else {
+        recording.durationMs
+    }
+    val effectiveIsPlaying = isForThisRecording && playerState.isPlaying
+
     DisposableEffect(Unit) {
         onDispose {
             onPausePlayback()
@@ -463,10 +472,10 @@ fun PlaybackScreen(
                         ) {
                             PlaybackWaveform(
                                 amplitudes = recordingAmplitudes,
-                                currentPositionMs = playerState.currentPositionMs,
-                                totalDurationMs = playerState.totalDurationMs.coerceAtLeast(recording.durationMs),
+                                currentPositionMs = effectivePositionMs,
+                                totalDurationMs = effectiveDurationMs,
                                 onSeek = onSeek,
-                                isPlaying = playerState.isPlaying,
+                                isPlaying = effectiveIsPlaying,
                                 modifier = Modifier
                                     .fillMaxSize()
                                     .padding(horizontal = 16.dp, vertical = 12.dp)
@@ -484,7 +493,7 @@ fun PlaybackScreen(
                             horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text(
-                                text = formatDuration(playerState.currentPositionMs),
+                                text = formatDuration(effectivePositionMs),
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontFamily = FontFamily.Monospace,
                                     fontWeight = FontWeight.Medium
@@ -493,7 +502,7 @@ fun PlaybackScreen(
                             )
 
                             Text(
-                                text = formatDuration(playerState.totalDurationMs.coerceAtLeast(recording.durationMs)),
+                                text = formatDuration(effectiveDurationMs),
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontFamily = FontFamily.Monospace
                                 ),
@@ -783,8 +792,8 @@ fun PlaybackScreen(
                                                 key = { it.startMs },
                                                 contentType = { "transcript_segment" }
                                             ) { segment ->
-                                                val isActive = playerState.currentPositionMs >= segment.startMs &&
-                                                        playerState.currentPositionMs <= segment.endMs
+                                                val isActive = effectivePositionMs >= segment.startMs &&
+                                                        effectivePositionMs <= segment.endMs
 
                                                 Column(
                                                     modifier = Modifier
@@ -922,7 +931,7 @@ fun PlaybackScreen(
                     )
                 }
 
-                val isPlaying = playerState.isPlaying
+                val isPlaying = effectiveIsPlaying
                 val playButtonShape = if (isPlaying) RoundedCornerShape(20.dp) else CircleShape
                 val playButtonColor = if (isPlaying) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
                 val playIconTint = if (isPlaying) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onPrimary
