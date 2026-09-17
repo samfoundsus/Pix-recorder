@@ -91,9 +91,9 @@ class AudioRecorderManager(
 
     private var speechErrorCount = 0
 
-    private fun initSpeechRecognizer() {
+    private fun ensureSpeechRecognizerCreated() {
+        if (speechRecognizer != null) return
         try {
-            speechRecognizer?.destroy()
             speechRecognizer = SpeechRecognizer.createSpeechRecognizer(context).apply {
                 setRecognitionListener(object : RecognitionListener {
                     override fun onReadyForSpeech(params: Bundle?) {}
@@ -108,7 +108,6 @@ class AudioRecorderManager(
                     override fun onError(error: Int) {
                         Log.d(tag, "SpeechRecognizer error: $error")
                         speechErrorCount++
-                        // Avoid repeatedly taking microphone away from MediaRecorder if SpeechRecognizer fails
                         if (_recordingState.value.isRecording && !_recordingState.value.isPaused) {
                             if (error != SpeechRecognizer.ERROR_AUDIO &&
                                 error != SpeechRecognizer.ERROR_CLIENT &&
@@ -118,9 +117,9 @@ class AudioRecorderManager(
                                     if (_recordingState.value.isRecording && !_recordingState.value.isPaused) {
                                         startSpeechListening()
                                     }
-                                }, 2000)
+                                }, 2500)
                             } else {
-                                Log.w(tag, "SpeechRecognizer stopped retrying during active recording to preserve microphone capture.")
+                                Log.w(tag, "SpeechRecognizer paused retries to maintain continuous microphone capture.")
                             }
                         }
                     }
@@ -171,7 +170,7 @@ class AudioRecorderManager(
         if (!settingsManager.autoTranscriptionEnabled.value) return
         mainHandler.post {
             try {
-                initSpeechRecognizer()
+                ensureSpeechRecognizerCreated()
                 recognitionIntent?.let { intent ->
                     speechRecognizer?.startListening(intent)
                 }
@@ -186,8 +185,11 @@ class AudioRecorderManager(
             try {
                 speechRecognizer?.stopListening()
                 speechRecognizer?.cancel()
+                speechRecognizer?.destroy()
             } catch (e: Exception) {
                 Log.w(tag, "stopListening error: ${e.message}")
+            } finally {
+                speechRecognizer = null
             }
         }
     }
@@ -247,19 +249,21 @@ class AudioRecorderManager(
     }
 
     private fun playStartSound() {
-        playSoundEffect(587.33, 100, blocking = true)
+        playSoundEffect(587.33, 80, blocking = true)
+        try { Thread.sleep(60L) } catch (e: Exception) {}
     }
 
     private fun playStopSound() {
-        playSoundEffect(440.0, 120, blocking = false)
+        playSoundEffect(440.0, 100, blocking = false)
     }
 
     private fun playPauseSound() {
-        playSoundEffect(523.25, 90, blocking = false)
+        playSoundEffect(523.25, 80, blocking = false)
     }
 
     private fun playResumeSound() {
-        playSoundEffect(659.25, 90, blocking = true)
+        playSoundEffect(659.25, 80, blocking = true)
+        try { Thread.sleep(60L) } catch (e: Exception) {}
     }
 
     fun startRecording(): Boolean {
@@ -392,6 +396,7 @@ class AudioRecorderManager(
                 isPaused = true,
                 liveTranscript = "Paused"
             )
+            try { Thread.sleep(30L) } catch (e: Exception) {}
             playPauseSound()
         } catch (e: Exception) {
             Log.e(tag, "Failed to pause recording: ${e.message}", e)
