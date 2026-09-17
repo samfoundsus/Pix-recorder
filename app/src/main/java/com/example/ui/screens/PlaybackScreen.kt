@@ -459,7 +459,7 @@ fun PlaybackScreen(
                                 .fillMaxWidth()
                                 .height(220.dp)
                                 .clip(RoundedCornerShape(24.dp)),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                            color = MaterialTheme.colorScheme.surfaceContainer
                         ) {
                             PlaybackWaveform(
                                 amplitudes = recordingAmplitudes,
@@ -636,7 +636,7 @@ fun PlaybackScreen(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .clip(RoundedCornerShape(24.dp)),
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                        color = MaterialTheme.colorScheme.surfaceContainer
                                     ) {
                                         Column(
                                             modifier = Modifier
@@ -751,7 +751,7 @@ fun PlaybackScreen(
                                         modifier = Modifier
                                             .fillMaxSize()
                                             .clip(RoundedCornerShape(24.dp)),
-                                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                        color = MaterialTheme.colorScheme.surfaceContainer
                                     ) {
                                         LazyColumn(
                                             modifier = Modifier

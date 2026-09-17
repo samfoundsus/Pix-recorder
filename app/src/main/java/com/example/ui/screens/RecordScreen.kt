@@ -373,7 +373,7 @@ fun RecordScreen(
                                     .fillMaxWidth()
                                     .height(220.dp)
                                     .clip(RoundedCornerShape(24.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .background(MaterialTheme.colorScheme.surfaceContainer)
                                     .padding(12.dp)
                             )
                         } else if (amplitudeFlow != null) {
@@ -384,7 +384,7 @@ fun RecordScreen(
                                     .fillMaxWidth()
                                     .height(220.dp)
                                     .clip(RoundedCornerShape(24.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .background(MaterialTheme.colorScheme.surfaceContainer)
                                     .padding(12.dp)
                             )
                         } else {
@@ -395,7 +395,7 @@ fun RecordScreen(
                                     .fillMaxWidth()
                                     .height(220.dp)
                                     .clip(RoundedCornerShape(24.dp))
-                                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f))
+                                    .background(MaterialTheme.colorScheme.surfaceContainer)
                                     .padding(12.dp)
                             )
                         }
@@ -454,7 +454,7 @@ fun RecordScreen(
                         modifier = Modifier
                             .fillMaxSize()
                             .clip(RoundedCornerShape(24.dp)),
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                        color = MaterialTheme.colorScheme.surfaceContainer
                     ) {
                         LazyColumn(
                             state = listState,

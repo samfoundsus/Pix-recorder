@@ -86,24 +86,6 @@ val FallbackLightColorScheme: ColorScheme =
     outlineVariant = FallbackLightOutlineVariant
   )
 
-private fun Color.deepenColor(factor: Float): Color {
-  return Color(
-    red = (red * factor).coerceIn(0f, 1f),
-    green = (green * factor).coerceIn(0f, 1f),
-    blue = (blue * factor).coerceIn(0f, 1f),
-    alpha = alpha
-  )
-}
-
-private fun Color.blendWith(overlay: Color, amount: Float): Color {
-  return Color(
-    red = (red * (1f - amount) + overlay.red * amount).coerceIn(0f, 1f),
-    green = (green * (1f - amount) + overlay.green * amount).coerceIn(0f, 1f),
-    blue = (blue * (1f - amount) + overlay.blue * amount).coerceIn(0f, 1f),
-    alpha = alpha
-  )
-}
-
 @Composable
 fun MyApplicationTheme(
   themeMode: ThemeMode? = null,
@@ -135,31 +117,9 @@ fun MyApplicationTheme(
   val colorScheme = when {
     dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
       if (isDark) {
-        val base = dynamicDarkColorScheme(context)
-        val tintedBg = base.background.deepenColor(0.72f).blendWith(base.primaryContainer, 0.25f).deepenColor(0.90f)
-        val tintedSurface = base.surface.deepenColor(0.72f).blendWith(base.primaryContainer, 0.25f).deepenColor(0.90f)
-        base.copy(
-          background = tintedBg,
-          surface = tintedSurface,
-          surfaceContainerLowest = base.surfaceContainerLowest.deepenColor(0.55f).blendWith(base.primaryContainer, 0.15f),
-          surfaceContainerLow = base.surfaceContainerLow.blendWith(base.primaryContainer, 0.18f),
-          surfaceContainer = base.surfaceContainer.blendWith(base.secondaryContainer, 0.20f),
-          surfaceContainerHigh = base.surfaceContainerHigh.blendWith(base.secondaryContainer, 0.22f),
-          surfaceContainerHighest = base.surfaceContainerHighest.blendWith(base.secondaryContainer, 0.25f)
-        )
+        dynamicDarkColorScheme(context)
       } else {
-        val base = dynamicLightColorScheme(context)
-        val tintedBg = base.background.blendWith(base.primaryContainer, 0.25f)
-        val tintedSurface = base.surface.blendWith(base.primaryContainer, 0.25f)
-        base.copy(
-          background = tintedBg,
-          surface = tintedSurface,
-          surfaceContainerLowest = Color.White,
-          surfaceContainerLow = base.surfaceContainerLow.blendWith(base.primaryContainer, 0.12f),
-          surfaceContainer = base.surfaceContainer.blendWith(base.secondaryContainer, 0.18f),
-          surfaceContainerHigh = base.surfaceContainerHigh.blendWith(base.secondaryContainer, 0.22f),
-          surfaceContainerHighest = base.surfaceContainerHighest.blendWith(base.secondaryContainer, 0.25f)
-        )
+        dynamicLightColorScheme(context)
       }
     }
     isDark -> FallbackDarkColorScheme
