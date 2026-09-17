@@ -897,21 +897,26 @@ fun PlaybackScreen(
                     )
                 }
 
+                val isPlaying = playerState.isPlaying
+                val playButtonShape = if (isPlaying) RoundedCornerShape(20.dp) else CircleShape
+                val playButtonColor = if (isPlaying) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.primary
+                val playIconTint = if (isPlaying) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onPrimary
+
                 // Big Main Play/Pause Button
                 Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.primary,
+                    shape = playButtonShape,
+                    color = playButtonColor,
                     modifier = Modifier
                         .size(68.dp)
-                        .clip(CircleShape)
+                        .clip(playButtonShape)
                         .clickable { onPlayPause() }
                         .testTag("main_play_pause_button")
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
-                            imageVector = if (playerState.isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
-                            contentDescription = if (playerState.isPlaying) "Pause" else "Play",
-                            tint = MaterialTheme.colorScheme.onPrimary,
+                            imageVector = if (isPlaying) Icons.Filled.Pause else Icons.Filled.PlayArrow,
+                            contentDescription = if (isPlaying) "Pause" else "Play",
+                            tint = playIconTint,
                             modifier = Modifier.size(36.dp)
                         )
                     }

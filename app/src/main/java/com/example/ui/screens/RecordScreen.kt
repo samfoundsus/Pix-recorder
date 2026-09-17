@@ -566,13 +566,18 @@ fun RecordScreen(
                     )
                 }
 
+                val isRecordingActive = !recordingState.isPaused
+                val recordButtonShape = if (isRecordingActive) RoundedCornerShape(20.dp) else CircleShape
+                val recordButtonColor = if (isRecordingActive) MaterialTheme.colorScheme.secondary else MaterialTheme.colorScheme.surfaceVariant
+                val recordIconTint = if (isRecordingActive) MaterialTheme.colorScheme.onSecondary else MaterialTheme.colorScheme.onSurface
+
                 // Pause / Resume Center Button
                 Surface(
-                    shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = recordButtonShape,
+                    color = recordButtonColor,
                     modifier = Modifier
                         .size(72.dp)
-                        .clip(CircleShape)
+                        .clip(recordButtonShape)
                         .clickable {
                             if (recordingState.isPaused) onResume() else onPause()
                         }
@@ -582,7 +587,7 @@ fun RecordScreen(
                         Icon(
                             imageVector = if (recordingState.isPaused) Icons.Filled.PlayArrow else Icons.Filled.Pause,
                             contentDescription = if (recordingState.isPaused) "Resume" else "Pause",
-                            tint = MaterialTheme.colorScheme.onSurface,
+                            tint = recordIconTint,
                             modifier = Modifier.size(36.dp)
                         )
                     }
