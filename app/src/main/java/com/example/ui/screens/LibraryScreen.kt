@@ -617,7 +617,7 @@ fun LibraryScreen(
                 }
 
                 if (!isSelectionMode) {
-                    val searchContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    val searchContainerColor = MaterialTheme.colorScheme.surfaceContainerLow
 
                     Spacer(modifier = Modifier.height(16.dp))
 
@@ -693,7 +693,7 @@ fun LibraryScreen(
                                 colors = FilterChipDefaults.filterChipColors(
                                     selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
                                     selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer,
-                                    containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                                    containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
                                     labelColor = MaterialTheme.colorScheme.onSurfaceVariant
                                 ),
                                 border = FilterChipDefaults.filterChipBorder(

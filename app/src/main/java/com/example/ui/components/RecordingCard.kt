@@ -123,7 +123,7 @@ fun RecordingCard(
                 }
             )
             .testTag("recording_item_card_${recording.id}"),
-        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f)
+        color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer
                 else unselectedCardColor,
         shape = RoundedCornerShape(16.dp),
         border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,

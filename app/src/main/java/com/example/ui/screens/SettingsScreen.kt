@@ -685,7 +685,7 @@ private fun SettingsSectionHeader(title: String) {
         text = title,
         style = MaterialTheme.typography.titleMedium.copy(
             fontWeight = FontWeight.SemiBold,
-            color = MaterialTheme.colorScheme.primary
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         ),
         modifier = Modifier.padding(start = 8.dp, bottom = 8.dp, top = 4.dp)
     )
